@@ -1,0 +1,775 @@
+:root { 
+    --p: #007bff; --s: #28a745; --d: #1a1d20; --l: #f8f9fa; 
+    --danger: #dc3545; --warning: #ffc107; --info: #17a2b8; --kit: #6f42c1; --orange: #fd7e14; --promo: #e83e8c;
+}
+
+body { 
+    font-family: 'Segoe UI', system-ui, sans-serif; 
+    margin: 0; 
+    background: #ced4da; 
+    height: 100vh; 
+    overflow: hidden; 
+    transition: background 0.3s; 
+}
+
+/* ======================================================= */
+/* 🎨 ESTRUCTURA PRINCIPAL Y PANELES                       */
+/* ======================================================= */
+
+.tab {
+    display: flex;
+    flex-wrap: wrap;
+    background-color: #1a1d20; 
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    border-bottom: 2px solid #ccc;
+}
+
+.tab button {
+    background-color: transparent;
+    color: white;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    padding: 12px 18px;
+    font-size: 13px;
+    font-weight: bold;
+    transition: 0.3s;
+    display: none; /* Se muestran desde JS según permisos */
+}
+
+.tab button:hover { background-color: rgba(255, 255, 255, 0.1); }
+.tab button.active { background-color: var(--p); color: white; }
+
+.tabcontent { 
+    height: calc(100vh - 50px); 
+    background: rgba(238, 238, 238, 0.85); 
+    backdrop-filter: blur(8px); 
+    display: none; 
+    overflow-y: auto; 
+    padding-bottom: 180px !important; /* Parche Visual: Colchón limpio */
+}
+
+.split-container { display: grid; grid-template-columns: 1fr 380px; height: 100%; }
+
+.panel-izq { 
+    padding: 25px; 
+    background: rgba(255, 255, 255, 0.85); 
+    border-right: 2px solid rgba(0,0,0,0.1); 
+    overflow-y: auto; 
+}
+
+.panel-der { 
+    background: linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.75)), url('fondo2.jpg') center/cover no-repeat; 
+    color: white; 
+    padding: 40px 20px; 
+    display: flex; 
+    flex-direction: column; 
+    justify-content: center; 
+    align-items: flex-end; 
+    transition: background 0.3s;
+}
+
+/* ======================================================= */
+/* 📝 TIPOGRAFÍA, INPUTS Y BOTONES                         */
+/* ======================================================= */
+
+.total-big { font-size: 55px; font-weight: 900; color: var(--s); line-height: 1; text-align: right; }
+.sub-total { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+
+input, select, textarea { 
+    width: 100%; padding: 10px; font-size: 15px; border: 2px solid #ddd; 
+    border-radius: 6px; outline: none; box-sizing: border-box; 
+}
+input:focus, textarea:focus { border-color: var(--p); border-width: 3px; background: #fff; }
+select:disabled { background: #444 !important; color: #888 !important; cursor: not-allowed; }
+
+.btn-final { 
+    width: 100%; padding: 15px; background: var(--s); color: white; border: none; 
+    border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; 
+    margin-top: 10px; transition: 0.2s; 
+}
+.btn-final:hover { filter: brightness(1.1); }
+.btn-final:disabled { background: #999 !important; cursor: not-allowed; }
+
+.btn-search { 
+    background: var(--p); color: white; border: none; padding: 0 20px; 
+    border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; white-space: nowrap; 
+}
+.btn-search:hover { filter: brightness(1.1); }
+
+.badge-kit { background: var(--kit); color: white; font-size: 10px; padding: 3px 6px; border-radius: 4px; font-weight: bold; margin-left: 5px; }
+
+/* ======================================================= */
+/* 📊 TABLAS Y CUADRÍCULAS (GRIDS)                         */
+/* ======================================================= */
+
+.tabla-pos { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; }
+.tabla-pos th { 
+    text-align: left; padding: 10px; border-bottom: 2px solid #eee; 
+    color: #888; font-size: 11px; text-transform: uppercase; 
+    position: sticky; top: 0; background: white; z-index: 10;
+}
+.tabla-pos td { padding: 12px 10px; border-bottom: 1px solid #eee; font-size: 14px; }
+
+/* Parche Modo Compacto (Originalmente en JS) */
+#v_lista td, #c_lista_tab td { padding: 4px 8px !important; vertical-align: middle !important; }
+#v_lista td input, #c_lista_tab td input { padding: 2px 5px !important; height: 26px !important; font-size: 13px !important; margin: 0 !important; }
+#v_lista td button, #c_lista_tab td button { padding: 2px 8px !important; height: 26px !important; font-size: 12px !important; line-height: 1 !important; margin: 0 !important; }
+#v_lista tr, #c_lista_tab tr { height: auto !important; scroll-margin-top: 45px !important; }
+
+/* Evitar que las tablas y contenedores se estiren (Parche Colchón) */
+.table-responsive, div[style*="overflow"] { margin-bottom: 80px !important; }
+table { height: auto !important; margin-bottom: 50px !important; }
+tbody tr { height: auto !important; }
+
+.c-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 15px 0; background: #fdfdfd; padding: 15px; border-radius: 12px; border: 2px solid #eee; }
+.c-grid label { font-size: 10px; font-weight: bold; color: var(--p); text-transform: uppercase; }
+
+.check-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: #f1f1f1; padding: 15px; border-radius: 8px; text-align: left;}
+.check-grid label { display: flex; align-items: center; gap: 5px; font-size: 13px; font-weight: bold; cursor: pointer; color: #333; text-transform: none;}
+
+/* ======================================================= */
+/* 🧩 MODALES Y COMPONENTES ESPECIALES                     */
+/* ======================================================= */
+
+.modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(4px); overflow-y: auto; padding: 5vh 0; box-sizing: border-box; }
+.modal-content { background: #fff; margin: 0 auto; padding: 25px; border-radius: 15px; width: 500px; max-width: 95% !important; border-top: 8px solid var(--p); box-shadow: 0 20px 40px rgba(0,0,0,0.4); max-height: 85vh; display: flex; flex-direction: column; overflow-y: auto; box-sizing: border-box; }
+
+#login-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('fondo.jpg') center/cover no-repeat; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; transition: 0.3s; }
+.dash-card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+.anulada-row { text-decoration: line-through; color: #dc3545; background: #fff5f5; }
+
+/* ======================================================= */
+/* 🖨️ ESTILOS PARA IMPRESIÓN DEL TICKET                    */
+/* ======================================================= */
+
+@media print {
+    body * { visibility: hidden !important; }
+    .no-print { display: none !important; }
+    @page { margin: 0; padding: 0; }
+
+    .print-active, .print-active * {
+        visibility: visible !important;
+        color: #000000 !important;
+        font-family: 'Courier New', Courier, monospace !important;
+        font-weight: 900 !important; 
+        font-size: var(--ticket-font, 14px) !important; 
+        line-height: 1.2 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    .print-active {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 56mm !important;
+        max-width: 56mm !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+        border: none !important;
+    }
+
+    .print-active table { 
+        width: 100% !important; 
+        table-layout: fixed !important; 
+        border-collapse: collapse !important;
+    }
+    
+    .print-active th:nth-child(1), .print-active td:nth-child(1) { width: 15% !important; }
+    .print-active th:nth-child(2), .print-active td:nth-child(2) { width: 50% !important; }
+    .print-active th:nth-child(3), .print-active td:nth-child(3) { width: 35% !important; text-align: right !important; }
+
+    .print-active th, .print-active td { 
+        padding: 5px 0 !important; 
+        word-wrap: break-word !important; 
+        border-bottom: 2px solid #000 !important; 
+    }
+    
+  .print-active h2, .print-active .total-gigante {
+        font-size: calc(var(--ticket-font, 14px) + 6px) !important;
+    }
+}
+
+/* ======================================================= */
+/* 💻 AJUSTES PARA COMPUTADORA (Crio-genico)               */
+/* ======================================================= */
+@media (min-width: 769px) {
+    body.bloquear-scroll { overflow: hidden !important; }
+}
+
+/* ======================================================= */
+/* 📱 AJUSTES RESPONSIVOS (TABLETS Y CELULARES)            */
+/* ======================================================= */
+
+@media (max-width: 850px) {
+    .kpi-grid { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+    .chart-grid { grid-template-columns: 1fr !important; }
+    .chart-grid > div, .kpi-grid > div { width: 100% !important; box-sizing: border-box !important; }
+}
+
+@media (max-width: 768px) {
+    /* Menú deslizable */
+    .tab { flex-wrap: nowrap !important; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .tab button { white-space: nowrap; flex-shrink: 0; padding: 12px 15px; }
+
+    /* Acomodo de los paneles principales */
+    .tabcontent > div { display: flex !important; flex-direction: column !important; }
+    .split-container { display: flex !important; flex-direction: column !important; height: auto !important; }
+    .panel-izq, .panel-der { width: 100% !important; box-sizing: border-box; border-right: none !important; }
+    .panel-izq { max-height: none !important; height: auto !important; border-bottom: 2px solid #ccc; padding: 15px 10px !important; }
+    .panel-der { height: auto !important; padding: 20px 10px !important; align-items: stretch !important; }
+
+    /* Hacemos que la página pueda hacer scroll normal con el dedo */
+    body { height: auto !important; overflow-y: auto !important; }
+    .tabcontent { height: auto !important; min-height: 100vh; overflow-y: visible !important; padding-bottom: 20px; }
+
+    /* Dashboard grids */
+    .kpi-grid, .chart-grid, .flujo-grid, .trans-grid { grid-template-columns: 1fr !important; }
+    .corte-grid { grid-template-columns: 1fr 1fr !important; }
+    .corte-grid > div:last-child { grid-column: span 2 !important; }
+
+    /* Evitar que las tablas estiren la pantalla */
+    .table-responsive { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table.tabla-pos { min-width: 500px; }
+
+    /* Inventario en celular */
+    #i-tab > div { padding: 10px !important; }
+    #i-tab > div > div:nth-child(1) { flex-direction: column !important; align-items: stretch !important; gap: 15px !important; }
+    #i-tab > div > div:nth-child(1) > div:last-child { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+    #i-tab > div > div:nth-child(1) button { width: 100% !important; font-size: 11px !important; padding: 10px 5px !important; margin: 0 !important; white-space: normal !important; }
+    #i-tab > div > div:nth-child(2) { flex-direction: column !important; gap: 10px !important; }
+    #i-tab input#buscar_inv, #i-tab select#filtro_dep, #i-tab select#filtro_tipo { width: 100% !important; flex: none !important; }
+    #i-tab > div > div:nth-child(3) { overflow-x: auto !important; -webkit-overflow-scrolling: touch !important; }
+    #i-tab table.tabla-pos { min-width: 850px !important; }
+
+    /* Tablas grandes en celular (Clientes, Promos, Provs, Kits) */
+    #cli-tab > div > div:last-child, #pro-tab > div > div:last-child, #prov-tab > div > div:last-child, #k-tab > div > div:last-child { overflow-x: auto !important; -webkit-overflow-scrolling: touch !important; }
+    #cli-tab table.tabla-pos, #pro-tab table.tabla-pos, #prov-tab table.tabla-pos, #k-tab table.tabla-pos { min-width: 600px !important; }
+
+    /* Ajustes de Modales en celular */
+    .modal-content { padding: 15px !important; max-height: 90vh !important; }
+    .modal-content input, .modal-content select { font-size: 16px !important; padding: 12px 8px !important; }
+    .modal-content .c-grid { grid-template-columns: 1fr !important; }
+    .modal-content > div[style*="display: flex; gap: 10px;"] { flex-direction: column; }
+    .modal-content > div[style*="display: flex; gap: 10px;"] button { width: 100% !important; margin-bottom: 5px; }
+}
+
+@media (max-width: 480px) {
+    .kpi-grid { grid-template-columns: 1fr !important; }
+}
+/* =========================================
+   📺 DISEÑO DEL NUEVO CARGADOR MP (MINI-SPINNER)
+   ========================================= */
+
+/* Este es el contenedor que alinea el spinner y el texto */
+#m_total {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+/* Este es el circulito gráfico que rota */
+.loader-mp {
+  border: 2px solid rgba(0,158,227, 0.1); /* Círculo de fondo tenue */
+  border-radius: 50%;
+  border-top: 2px solid #009ee3; /* El color de carga (Azul MP) */
+  width: 14px; /* ¡MÁS PEQUEÑO! Exactamente lo que pediste */
+  height: 14px;
+  -webkit-animation: spin 1s linear infinite; /* Tiempo y tipo de rotación */
+  animation: spin 1s linear infinite;
+  margin-right: 8px; /* Separación con el texto */
+}
+
+/* Esta es la regla matemática que lo hace girar */
+@-webkit-keyframes spin {
+  0% { -webkit-transform: rotate(0deg); }
+  100% { -webkit-transform: rotate(360deg); }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+/* Forzar que el panel de turno siempre mantenga su estructura */
+#panel_control_turno {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+.arq-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    background: #f8f9fa;
+    padding: 5px 10px;
+    border-radius: 5px;
+    border: 1px solid #eee;
+}
+.arq-row label {
+    font-weight: bold;
+    color: #333;
+}
+.arq-input {
+    width: 70px;
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    text-align: center;
+    font-size: 16px;
+}
+<style>
+    /* Forzar tamaño compacto para las notificaciones de transferencia y devolución */
+    #modalNotificacionTransferencia > div,
+    #modalDevolucion > div,
+    .modal-transferencia-compacta {
+        max-width: 500px !important;
+        margin: 10vh auto !important;
+        border-radius: 15px !important;
+        box-shadow: 0px 10px 30px rgba(0,0,0,0.3) !important;
+    }
+</style>
+/* Agrupa 2 botones en la misma línea */
+.fila-botones-movil {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.fila-botones-movil button {
+    flex: 1; /* Hace que ambos botones midan lo mismo */
+    margin-bottom: 0; /* Quita el margen inferior si ya tenían uno */
+    font-size: 0.9em; /* Letra ligeramente más pequeña para que quepa bien */
+    padding: 10px 5px;
+    white-space: nowrap; /* Evita que el texto se rompa en dos líneas */
+}
+
+/* Agrupa las tarjetas de totales lado a lado */
+.grid-tarjetas-movil {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* Dos columnas iguales */
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.grid-tarjetas-movil .tarjeta { /* Reemplaza .tarjeta con la clase actual de tus recuadros */
+    margin-bottom: 0;
+    padding: 15px 10px;
+}
+
+/* Opcional: Centrar textos en las tarjetas pequeñas */
+.grid-tarjetas-movil h3, 
+.grid-tarjetas-movil h2 {
+    text-align: center;
+    font-size: 1em; 
+}
+/* ======================================================= */
+/* 💧 MARCA DE AGUA FLOTANTE (CORREGIDA Y AL FONDO)        */
+/* ======================================================= */
+
+.panel-izq {
+    position: relative; 
+}
+
+.panel-izq::after {
+    content: "";
+    position: absolute;
+    top: 160px; /* Baja la imagen para que no toque el buscador ni los botones */
+    left: 20px; 
+    right: 20px; 
+    bottom: 20px;
+    
+    background-image: var(--logo-sucursal);
+    background-size: contain; /* Tamaño fijo para que se vea proporcionado */
+    background-position: center; 
+    background-repeat: no-repeat;
+    
+    opacity: 0.15; 
+    pointer-events: none; 
+    z-index: 0; /* Lo manda al fondo absoluto */
+}
+
+/* Protege tu buscador, botones y tabla para que siempre estén arriba de la imagen */
+.panel-izq > * {
+    position: relative;
+    z-index: 1;
+}
+/* ========================================= */
+/* 🌟 TEXTO MODERNO Y ELEGANTE (Tipo Apple)  */
+/* ========================================= */
+
+.panel-der, .panel-der small, .panel-der div {
+    color: #ffffff !important; /* Blanco puro */
+    text-shadow: 0px 2px 5px rgba(0,0,0,0.5) !important; /* Sombra muy sutil, casi invisible */
+    font-weight: 500 !important;
+}
+
+
+
+/* Contador de artículos: Botón de cristal (Glassmorphism) */
+#v_contador_articulos {
+    color: #ffffff !important;
+    background: rgba(255, 255, 255, 0.2) !important; /* Cristal blanco translúcido */
+    backdrop-filter: blur(5px); /* Efecto borroso elegante */
+    -webkit-backdrop-filter: blur(5px);
+    padding: 6px 16px !important;
+    border-radius: 20px !important; /* Bordes redonditos */
+    display: inline-block !important;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2) !important;
+    margin-top: 10px !important;
+    font-weight: normal !important;
+}
+/* ========================================= */
+/* 📢 MARQUESINA DE PROMOCIONES (Elegante)   */
+/* ========================================= */
+.promo-ticker-container {
+    background: #eff6ff; /* Fondo azul extra clarito para combinar */
+    color: #0d6efd; /* Texto en azul */
+    padding: 8px 0;
+    overflow: hidden;
+    white-space: nowrap;
+    font-size: 13px;
+    border-bottom: 1px solid #cce5ff;
+}
+
+.promo-ticker-text {
+    display: inline-block;
+    padding-left: 100%;
+    animation: marquee 200s linear infinite; /* Movimiento suave */
+}
+
+@keyframes marquee {
+    0% { transform: translate(0, 0); }
+    100% { transform: translate(-100%, 0); }
+}
+/* ========================================= */
+/* 🌟 1. MENÚ BLANCO MODERNO Y LIMPIO        */
+/* ========================================= */
+.tab {
+    background: #ffffff !important;
+    border-bottom: 2px solid #0d6efd !important;
+    display: flex;
+    overflow-x: auto;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+}
+
+/* Forzamos a todos los botones a perder sus colores viejos y volverse limpios */
+.tab button, .tab .t-btn {
+    background: transparent !important;
+    background-color: transparent !important;
+    color: #666 !important; 
+    border: none !important;
+    padding: 15px 22px !important;
+    margin: 0 !important;
+    font-weight: 700 !important;
+    font-size: 13px !important;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: all 0.2s ease !important;
+    border-bottom: 3px solid transparent !important;
+    margin-bottom: -2px !important; 
+}
+
+.tab button:hover, .tab .t-btn:hover {
+    color: #0d6efd !important;
+    background: rgba(13, 110, 253, 0.05) !important;
+}
+
+.tab button.active, .tab .t-btn.active {
+    background-color: transparent !important;
+    color: #0d6efd !important; 
+    border-bottom: 3px solid #0d6efd !important; 
+}
+
+/* ========================================= */
+/* 🌟 2. MARQUESINA DE PROMOCIONES           */
+/* ========================================= */
+.promo-ticker-container {
+    background: #002855 !important; 
+    color: #ffffff !important; 
+    padding: 10px 0 !important;
+    overflow: hidden !important;
+    white-space: nowrap !important;
+    font-size: 14px !important;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+    border: none !important;
+}
+
+.promo-ticker-text {
+    display: inline-block;
+    padding-left: 100%;
+    animation: marquee 50s linear infinite; 
+}
+
+@keyframes marquee {
+    0% { transform: translate(0, 0); }
+    100% { transform: translate(-100%, 0); }
+}
+
+/* ========================================= */
+/* 🌟 3. TEXTOS BLANCOS (PANEL DERECHO)      */
+/* ========================================= */
+.panel-der div:not(.promo-ticker-container), 
+.panel-der span:not(.promo-ticker-text), 
+.panel-der small, 
+.panel-der p {
+    color: #ffffff !important; 
+    text-shadow: 1px 2px 4px rgba(0,0,0,0.9), 0px 4px 10px rgba(0,0,0,0.8) !important;
+    font-weight: 600 !important;
+}
+
+/* ========================================= */
+/* 🌟 4. PRECIO AMARILLO Y BOTÓN AZUL        */
+/* ========================================= */
+#v_total, #v_signo {
+    color: #ffd700 !important; 
+    font-weight: 900 !important;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.9), 0px 5px 15px rgba(0,0,0,0.8) !important;
+}
+
+.panel-der button {
+    background: #0d6efd !important; 
+    border: 1px solid rgba(255,255,255,0.2) !important;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5) !important;
+    text-shadow: none !important;
+    color: #ffffff !important;
+    transition: transform 0.1s ease, background 0.2s ease !important;
+}
+
+.panel-der button:hover {
+    filter: brightness(1.2);
+    transform: scale(1.02);
+}
+
+/* ========================================= */
+/* 🌟 5. CONTADOR DE ARTÍCULOS (CRISTAL)     */
+/* ========================================= */
+#v_contador_articulos {
+    color: #ffffff !important;
+    background: rgba(0, 0, 0, 0.65) !important; 
+    backdrop-filter: blur(8px); 
+    -webkit-backdrop-filter: blur(8px);
+    padding: 6px 16px !important;
+    border-radius: 20px !important; 
+    border: 1px solid rgba(255,255,255,0.15) !important; 
+    display: inline-block !important;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4) !important;
+    margin-top: 10px !important;
+    text-shadow: none !important;
+}
+/* Ajuste compacto para alertas de promoción en celular */
+.promo-alert-box { /* Cambia .promo-alert-box por la clase real si es distinta */
+    padding: 5px !important;
+    font-size: 13px !important;
+    margin-bottom: 5px !important;
+    width: 100% !important;
+    max-width: 300px !important;
+}
+
+/* Reducir el tamaño de la fuente y márgenes dentro del cuadro */
+.promo-alert-box h4, .promo-alert-box p {
+    margin: 2px 0 !important;
+}
+/* ========================================= */
+/* 🧀 ESTILOS DEL MODO CREMERÍA (TABLET) */
+/* ========================================= */
+#modal_cremeria {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: #f4f7f6; z-index: 99999; display: none; flex-direction: row;
+    font-family: Arial, sans-serif;
+}
+.cremeria-izquierda {
+    flex: 2; display: flex; flex-direction: column; padding: 20px; overflow-y: auto;
+}
+.cremeria-derecha {
+    flex: 1; background: white; border-left: 3px solid #ddd; display: flex; flex-direction: column; padding: 20px; box-shadow: -5px 0 15px rgba(0,0,0,0.05);
+}
+.grid-productos-cremeria {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; margin-top: 20px;
+}
+.btn-cremeria {
+    background: white; border: 2px solid #0d6efd; border-radius: 12px; padding: 15px 10px;
+    font-size: 15px; font-weight: bold; color: #333; cursor: pointer;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: 0.1s;
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+}
+.btn-cremeria:active { transform: scale(0.95); background: #e9ecef; }
+.btn-cremeria small { font-size: 12px; color: #888; margin-top: 8px; }
+.item-carrito-cremeria {
+    display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px dashed #ccc; font-size: 16px; font-weight: bold;
+}
+.btn-imprimir-cremeria {
+    background: #198754; color: white; border: none; padding: 20px; font-size: 20px; font-weight: bold; border-radius: 10px; cursor: pointer; margin-top: auto;
+}
+.btn-imprimir-cremeria:active { background: #146c43; }
+@media screen and (max-width: 768px) {
+    /* REGLA DE SEGURIDAD: Si está cerrado, desaparece por completo de la pantalla principal */
+    #modal_cremeria[style*="none"] {
+        display: none !important;
+    }
+
+    /* TU DISEÑO EXACTO (Sin tocar ni un pixel de lo que te gustó) */
+    #modal_cremeria:not([style*="none"]) {
+        display: flex !important;
+        flex-direction: column !important;
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        background: #f8f9fa !important;
+        z-index: 99999 !important;
+    }
+
+    #cremeria_panel_izq {
+        flex: 0 0 auto !important;
+        width: 100% !important;
+        height: auto !important;
+        min-height: 400px !important;
+        padding: 12px 10px !important;
+        overflow: visible !important;
+        box-sizing: border-box !important;
+    }
+
+    #grid_cremeria {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        grid-auto-rows: minmax(75px, auto) !important;
+        gap: 10px !important;
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+        padding: 4px 0 !important;
+    }
+
+    #grid_cremeria button,
+    #grid_cremeria > div {
+        min-height: 75px !important;
+        height: auto !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        align-items: center !important;
+        text-align: center !important;
+        padding: 8px !important;
+        border: 2px solid #0d6efd !important;
+        border-radius: 10px !important;
+        background: #ffffff !important;
+        box-sizing: border-box !important;
+        white-space: normal !important;
+        line-height: 1.25 !important;
+    }
+
+    #grid_cremeria button span,
+    #grid_cremeria button div {
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        color: #212529 !important;
+    }
+
+    #grid_cremeria button b,
+    #grid_cremeria button strong {
+        font-size: 15px !important;
+        font-weight: bold !important;
+        color: #198754 !important;
+        margin-top: 4px !important;
+    }
+
+    #cremeria_panel_der {
+        flex: 0 0 auto !important;
+        width: 100% !important;
+        height: auto !important;
+        min-height: 350px !important;
+        padding: 15px !important;
+        padding-bottom: 85px !important;
+        border-left: none !important;
+        border-top: 3px solid #0d6efd !important;
+        box-sizing: border-box !important;
+        overflow: visible !important;
+    }
+
+    #carrito_cremeria {
+        height: auto !important;
+        min-height: 120px !important;
+        max-height: none !important;
+        overflow: visible !important;
+        margin-bottom: 12px !important;
+    }
+
+    #cremeria_panel_der > div:last-child {
+        display: block !important;
+        margin-top: 15px !important;
+    }
+
+    #total_cremeria {
+        font-size: 24px !important;
+        font-weight: bold !important;
+        margin-bottom: 10px !important;
+        text-align: right !important;
+    }
+
+    #cremeria_panel_der button {
+        padding: 14px 8px !important;
+        font-size: 15px !important;
+        font-weight: bold !important;
+    }
+}
+/* 📷 CENTRADO DEL ESCÁNER Y CÁMARA */
+#contenedor_escaner, 
+[id*="scanner"], 
+[id*="reader"] {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+    text-align: center !important;
+    overflow: hidden !important;
+}
+
+/* Forzar que el video no se desplace a la izquierda */
+#contenedor_escaner video, 
+[id*="scanner"] video, 
+[id*="reader"] video {
+    width: 100% !important;
+    max-width: 320px !important;
+    height: auto !important;
+    max-height: 220px !important;
+    object-fit: cover !important;
+    border-radius: 10px !important;
+    margin: 0 auto !important;
+    display: block !important;
+}
+
+/* Si usa un recuadro o visor de guía */
+#contenedor_escaner canvas,
+[id*="reader"] canvas {
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+}
+.input-pin-seguro {
+    -webkit-text-security: disc; /* Oculta los números con puntos igual que un password */
+}
+/* Agrega un margen de 20 píxeles a los lados de toda la pantalla */
+body {
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+    box-sizing: border-box !important;
+}
+/* Separación entre la tabla y el panel de cobro */
+.panel-derecho { /* Cambia esto por el nombre real de tu panel */
+    margin-left: 15px !important; 
+}
+table, .tabla-ventas { /* Cambia por la clase de tu tabla */
+    margin-left: 0 !important;
+    padding-left: 5px !important;
+}
