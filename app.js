@@ -10,8 +10,9 @@ window.dbLocal.version(2).stores({
 // ====================================================================
 // === 1. CONEXIÓN A POCKETBASE EN LA NUBE ===
 // ====================================================================
-const pb = new PocketBase('onyx-badger.pikapod.net');
+const pb = new PocketBase('https://onyx-badger.pikapod.net');
 pb.autoCancellation(false);
+
 
 // ====================================================================
 // === 2. ADAPTADOR POCKETBASE (MOTOR BLINDADO ANTI-RESET Y ANTI-CLONES) ===
@@ -1557,48 +1558,71 @@ function updateClock() {
 // ====================================================================
 window.cargarFondosDesdeNube = async function() {
     try {
-        // 🔥 ANTI-CACHÉ ABSOLUTO: Le ordenamos a la base de datos que traiga la información más reciente
-        const records = await pb.collection('config_visual').getFullList({ 
-            requestKey: null,
-            sort: '-updated' // <-- Esto fuerza a que siempre lea el cambio más nuevo
+        // 1. Definir los estándares por defecto (Tus imágenes en GitHub Pages)
+        let urlLoginDefault = './img/fondo.jpg'; 
+        let urlPanelDefault = './img/fondo2.jpg';
+
+        // Aplicamos los fondos por defecto de inmediato (Para que nunca se vea blanco)
+        let bgLogin = document.getElementById('login-screen');
+        if (bgLogin) bgLogin.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('${urlLoginDefault}')`;
+
+        document.querySelectorAll('.panel-der').forEach(panel => {
+            panel.style.backgroundImage = `url('${urlPanelDefault}')`;
+            panel.style.backgroundSize = "cover";
+            panel.style.backgroundPosition = "center";
+            panel.style.backgroundRepeat = "no-repeat"; 
         });
 
-        if (records.length > 0) {
-            const record = records[0];
-            let tiempoExacto = new Date().getTime(); // Número único para engañar a la imagen
-            
-            // 1. Fondo Login
-            if (record.fondo_login) {
-                let urlLogin = pb.files.getUrl(record, record.fondo_login) + '?t=' + tiempoExacto;
-                let bgLogin = document.getElementById('login-screen');
-                if(bgLogin) {
-                    bgLogin.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('${urlLogin}')`;
+        // 2. Revisamos si el cliente tiene sesión y buscamos sus imágenes privadas
+        if (typeof pb !== 'undefined' && pb.authStore.isValid) {
+            let miNegocioId = pb.authStore.model.negocio_id;
+            let nombreSucursal = String(typeof sucursalActual !== 'undefined' ? sucursalActual : "Matriz").replace(/📍/g, '').trim();
+
+            let filtro = `sucursal='${nombreSucursal}'`;
+            if (miNegocioId) filtro += ` && negocio_id='${miNegocioId}'`;
+
+            // 🔥 ANTI-CACHÉ ABSOLUTO: Le ordenamos a la base de datos que traiga la información más reciente
+            const records = await pb.collection('config_visual').getFullList({ 
+                filter: filtro,
+                requestKey: null,
+                sort: '-updated' // <-- Esto fuerza a que siempre lea el cambio más nuevo
+            });
+
+            if (records.length > 0) {
+                const record = records[0];
+                let tiempoExacto = new Date().getTime(); // Número único para engañar a la imagen
+                
+                // 1. Fondo Login personalizado
+                if (record.fondo_login) {
+                    let urlLoginCustom = pb.files.getUrl(record, record.fondo_login) + '?t=' + tiempoExacto;
+                    if(bgLogin) {
+                        bgLogin.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('${urlLoginCustom}')`;
+                    }
+                }
+                
+                // 2. Fondo Panel Derecho personalizado
+                if (record.fondo_panel) {
+                    let urlPanelCustom = pb.files.getUrl(record, record.fondo_panel) + '?t=' + tiempoExacto;
+                    document.querySelectorAll('.panel-der').forEach(panel => {
+                        panel.style.backgroundImage = `url('${urlPanelCustom}')`;
+                    });
                 }
             }
-            
-            // 2. Fondo Panel Derecho (Imagen limpia sin degradado)
-if (record.fondo_panel) {
-    let urlPanel = pb.files.getUrl(record, record.fondo_panel) + '?t=' + tiempoExacto;
-    
-    document.querySelectorAll('.panel-der').forEach(panel => {
-        // Inyectamos ÚNICAMENTE la imagen pura
-        panel.style.backgroundImage = `url('${urlPanel}')`;
-        panel.style.backgroundSize = "cover";
-        panel.style.backgroundPosition = "center";
-        panel.style.backgroundRepeat = "no-repeat"; 
-    });
-}
         }
     } catch (e) {
-        console.warn("⚠️ Error al consultar el diseño visual a la base de datos:", e);
+        console.warn("⚠️ Error al consultar el diseño visual a la base de datos. Se usaron los estándares.", e);
     }
 };
 
-// El motor para enviar las imágenes desde tu sistema
+// ⚡ Ejecutar al iniciar la aplicación para que aplique los estándares inmediatamente
+setTimeout(() => {
+    if (typeof window.cargarFondosDesdeNube === 'function') window.cargarFondosDesdeNube();
+}, 800);
+
 window.subirFondos = async function() {
     let fileLogin = document.getElementById('file_fondo_login').files[0];
     let filePanel = document.getElementById('file_fondo_panel').files[0];
-    let fileMarca = document.getElementById('file_marca_agua').files[0]; 
+    let fileMarca = document.getElementById('file_marca_agua') ? document.getElementById('file_marca_agua').files[0] : null; 
     
     if (!fileLogin && !filePanel && !fileMarca) return alert("⚠️ Selecciona al menos una imagen para subir.");
 
@@ -1615,27 +1639,37 @@ window.subirFondos = async function() {
         if (fileMarca) formData.append('marca_agua', fileMarca);
         formData.append('sucursal', nombreSucursal);
 
-        // 🌟 BUSCAMOS SI YA EXISTE UN REGISTRO EXCLUSIVO DE ESTA SUCURSAL
+        // 🛡️ APLICAMOS EL SELLO DEL NEGOCIO AL FORM DATA
+        if (typeof pb !== 'undefined' && pb.authStore.isValid && pb.authStore.model.negocio_id) {
+            formData.append('negocio_id', pb.authStore.model.negocio_id);
+        }
+
+        // 🌟 BUSCAMOS SI YA EXISTE UN REGISTRO EXCLUSIVO DE ESTA SUCURSAL Y ESTE NEGOCIO
+        let miNegocioId = (typeof pb !== 'undefined' && pb.authStore.isValid) ? pb.authStore.model.negocio_id : '';
+        let filtro = `sucursal='${nombreSucursal}'`;
+        if (miNegocioId) filtro += ` && negocio_id='${miNegocioId}'`;
+
         const records = await pb.collection('config_visual').getFullList({ 
-            filter: `sucursal='${nombreSucursal}'`,
+            filter: filtro,
             requestKey: null 
         });
         
         if (records.length > 0) {
             // Actualiza solo el de esta sucursal
-            await pb.collection('config_visual').update(records[0].id, formData);
+            await pb.collection('config_visual').update(records[0].id, formData, { requestKey: null });
         } else {
             // Crea un registro nuevo para esta sucursal
-            await pb.collection('config_visual').create(formData);
+            await pb.collection('config_visual').create(formData, { requestKey: null });
         }
 
-        alert(`✅ Imágenes actualizadas para la sucursal: ${nombreSucursal}`);
+        alert(`✅ Imágenes actualizadas para la sucursal: ${nombreSucursal}\n\nLos cambios se reflejarán al recargar.`);
         
         document.getElementById('file_fondo_login').value = '';
         document.getElementById('file_fondo_panel').value = '';
         if(document.getElementById('file_marca_agua')) document.getElementById('file_marca_agua').value = '';
         
         if (typeof window.actualizarMarcaDeAgua === 'function') window.actualizarMarcaDeAgua();
+        if (typeof window.cargarConfigVisual === 'function') window.cargarConfigVisual(); // Forzamos la descarga de las nuevas imágenes
         
     } catch (error) {
         console.error("Error al subir fondos:", error);
@@ -1818,57 +1852,55 @@ function initLoginSelect() {
     sel.innerHTML = htmlUsuarios;
 }
 
-window.intentarLogin = function() {
+window.intentarLogin = async function() {
     let u = document.getElementById('login_user').value; 
     let p = document.getElementById('login_pin').value;
     
-    if(usuariosData[u] && usuariosData[u].pin === p) { 
+    // Verificamos si existe usuario local
+    let datosCajero = (typeof usuariosData !== 'undefined' && usuariosData[u]) ? usuariosData[u] : null;
+    let pinValido = datosCajero && datosCajero.pin === p;
+
+    // 🌟 DOBLE LLAVE PARA ADMIN: Si escribe su contraseña de PocketBase o el PIN inicial 1234
+    if (!pinValido && u === "Admin") {
+        if (p === "1234") {
+            pinValido = true;
+        } else if (typeof pb !== 'undefined' && pb.authStore.isValid && pb.authStore.model) {
+            // Si escribió la contraseña de su cuenta PocketBase
+            try {
+                let checkAuth = await pb.collection('users').authWithPassword(pb.authStore.model.email, p, { requestKey: null });
+                if (checkAuth) pinValido = true;
+            } catch(e) {}
+        }
+    }
+
+    if (pinValido) { 
         usuarioActual = u; 
         document.getElementById('ui_current_user').innerText = u; 
         document.getElementById('login-screen').style.display = 'none'; 
-        
-        // 👉 AQUI GUARDAMOS EL USUARIO GLOBAL PARA EL RADAR DE AUDITORÍAS
         window.usuarioActivoGlobal = u;
+
+        // Si usuariosData no tenía a Admin registrado localmente, lo inicializamos
+        if (!usuariosData[u]) {
+            usuariosData[u] = {
+                pin: p,
+                tabs: ["v-tab", "c-tab", "i-tab", "cli-tab", "r-tab", "u-tab", "kardex-tab", "audi-tab"],
+                permisos: ["inv_ciego", "auditoria"]
+            };
+            try { localStorage.setItem("pos_usuarios_v1", JSON.stringify(usuariosData)); } catch(e){}
+        }
 
         if (u === "Admin") { 
             document.getElementById('ui_sucursal').disabled = false; 
             if(document.getElementById('corte_sucursal')) document.getElementById('corte_sucursal').disabled = false;
             if(document.getElementById('t_origen')) document.getElementById('t_origen').disabled = false;
         } else { 
-            // Bloqueamos el selector para que el cajero solo opere en la sucursal donde hizo login
             document.getElementById('ui_sucursal').disabled = true; 
             if(document.getElementById('corte_sucursal')) document.getElementById('corte_sucursal').disabled = true;
             if(document.getElementById('t_origen')) document.getElementById('t_origen').disabled = true;
         }
         
         document.querySelectorAll('.t-btn').forEach(btn => btn.style.display = 'none');
-        
-        let allowedTabs = usuariosData[u].tabs || [];
-        
-        // 🔒 SEGURO ANTI-BLOQUEO DEL ADMIN: 
-        if (u === "Admin") {
-            if (!allowedTabs.includes("u-tab")) allowedTabs.push("u-tab");          
-            if (!allowedTabs.includes("kardex-tab")) allowedTabs.push("kardex-tab"); 
-            if (!allowedTabs.includes("audi-tab")) allowedTabs.push("audi-tab"); 
-        }
-        
-        // =================================================================
-        // 🛡️ GUARDIÁN DE PERMISOS: INVENTARIO CIEGO Y AUDITORÍAS
-        // =================================================================
-        setTimeout(() => {
-            let misPermisos = usuariosData[u].permisos || []; 
-            let esAdmin = (u === "Admin");
-
-            let btnInvCiego = document.getElementById('btn_hacer_inv_ciego');
-            if (btnInvCiego) {
-                btnInvCiego.style.display = (esAdmin || misPermisos.includes('inv_ciego')) ? 'inline-block' : 'none';
-            }
-
-            let btnAuditoria = document.getElementById('btn_audi-tab');
-            if (btnAuditoria) {
-                btnAuditoria.style.display = (esAdmin || misPermisos.includes('auditoria')) ? 'inline-block' : 'none';
-            }
-        }, 300);
+        let allowedTabs = usuariosData[u].tabs || ["v-tab", "c-tab", "i-tab", "cli-tab", "r-tab", "u-tab", "kardex-tab", "audi-tab"];
         
         allowedTabs.forEach(tabId => { 
             let btn = document.getElementById('btn_' + tabId); 
@@ -1881,55 +1913,31 @@ window.intentarLogin = function() {
         if(typeof renderCorte === 'function') renderCorte(); 
         document.getElementById('login_pin').value = '';
 
+        if (typeof window.verificarSuscripcion === 'function') {
+            window.verificarSuscripcion();
+        }
 
-        // =================================================================
-        // 🏪 🚨 AUTO-ROAMING DE TURNO (MULTISUCURSAL)
-        // =================================================================
+        // Sincronización de sesión y turnos
         setTimeout(async () => {
-            let sucNombre = String(typeof sucursalActual !== 'undefined' ? sucursalActual : "Matriz").replace(/📍/g, '').trim();
-
             try {
-                // 🌟 BUSCAMOS EL TURNO EXCLUSIVO DEL CAJERO (Sin importar dónde lo abrió)
-                let urlSesion = `https://sexy-starling.pikapod.net/api/collections/cajas_sesiones/records?filter=(estado='abierta'%20%26%26%20cajero='${u}')&sort=-created&limit=1&_t=${Date.now()}`;
+                let baseUrl = (typeof pb !== 'undefined' && pb.baseUrl) ? pb.baseUrl : 'https://onyx-badger.pikapod.net';
+                let miNegocioId = (typeof pb !== 'undefined' && pb.authStore?.model?.negocio_id) ? pb.authStore.model.negocio_id : '';
+                let filtroSesion = `(estado='abierta' && cajero='${u}')`;
+                if (miNegocioId) filtroSesion = `(estado='abierta' && cajero='${u}' && negocio_id='${miNegocioId}')`;
+
+                let urlSesion = `${baseUrl}/api/collections/cajas_sesiones/records?filter=${encodeURIComponent(filtroSesion)}&sort=-created&limit=1&_t=${Date.now()}`;
                 let res = await fetch(urlSesion, { cache: 'no-store' });
-                
                 if (res.ok) {
                     let data = await res.json();
                     if (data.items && data.items.length > 0) {
-                        let sesionNube = data.items[0];
-                        
-                        // 🌟 ENGANCHE AUTOMÁTICO SILENCIOSO
-                        window.sesionCajaActual = sesionNube.data || sesionNube;
+                        window.sesionCajaActual = data.items[0].data || data.items[0];
                         try { localStorage.setItem("pos_sesion_caja", JSON.stringify(window.sesionCajaActual)); } catch(e){}
-                        
-                        console.log("✅ Turno flotante enlazado:", window.sesionCajaActual.id);
-                        
-                        if (typeof mostrarAvisoRapido === 'function') {
-                            mostrarAvisoRapido(`✅ Turno sincronizado automáticamente.`);
-                        }
-                    } else {
-                        // Si no hay turnos a su nombre, limpiamos su memoria
-                        window.sesionCajaActual = null;
-                        try { localStorage.removeItem("pos_sesion_caja"); } catch(e){}
                     }
                 }
-            } catch(e) {
-                console.error("Error al buscar sesión en la nube:", e);
-            }
-            
-            // ACTUALIZAMOS LA UI VISUAL (BOTONES ROJO Y VERDE)
-            if (typeof actualizarIndicadorTurnoUI === 'function') {
-                actualizarIndicadorTurnoUI();
-            }
-            
-            if (typeof actualizarMarcaDeAgua === 'function') {
-                actualizarMarcaDeAgua();
-            }
+            } catch(e) {}
 
-            // SI ESTÁ CERRADO, AHÍ SÍ LE PREGUNTAMOS SI QUIERE ABRIR UNO NUEVO
             if (!window.sesionCajaActual || window.sesionCajaActual.estado !== 'abierta') {
                 let deseaAbrir = confirm(`🏪 No tienes ningún turno abierto, ${u}.\n\n¿Deseas INICIAR TURNO e ingresar el Fondo Inicial ahora?`);
-                
                 if (deseaAbrir && typeof abrirMontoInicialCaja === 'function') {
                     abrirMontoInicialCaja();
                 }
@@ -1948,7 +1956,7 @@ window.actualizarMarcaDeAgua = async function() {
     if (!contenedorPanel) return; 
 
     try {
-        let urlPB = `https://sexy-starling.pikapod.net/api/collections/config_visual/records?filter=(sucursal='${nombreSucursal}')`;
+        let urlPB = `https://onyx-badger.pikapod.net/api/collections/config_visual/records?filter=(sucursal='${nombreSucursal}')`;
         let respuesta = await fetch(urlPB);
         let data = await respuesta.json();
 
@@ -1956,7 +1964,7 @@ window.actualizarMarcaDeAgua = async function() {
             let configVisual = data.items[0];
             
             if (configVisual.marca_agua) {
-                let urlLogo = `https://sexy-starling.pikapod.net/api/files/${configVisual.collectionId}/${configVisual.id}/${configVisual.marca_agua}`;
+                let urlLogo = `https://onyx-badger.pikapod.net/api/files/${configVisual.collectionId}/${configVisual.id}/${configVisual.marca_agua}`;
                 
                 // Aplicamos la variable CSS al panel izquierdo
                 contenedorPanel.style.setProperty('--logo-sucursal', `url('${urlLogo}')`);
@@ -6678,12 +6686,12 @@ window.abrirModalDevolucion = async function(idRecord, datosModal) {
     window.movimientos.push(nuevoMov);
 
     try {
-        await fetch("https://sexy-starling.pikapod.net/api/collections/movimientos/records", {
+        await fetch("https://onyx-badger.pikapod.net/api/collections/movimientos/records", {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ doc_id: String(nuevoMov.id), data: nuevoMov })
         });
 
-        await fetch(`https://sexy-starling.pikapod.net/api/collections/transferencias/records/${idRecord}`, {
+        await fetch(`https://onyx-badger.pikapod.net/api/collections/transferencias/records/${idRecord}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ estado: "cancelada", "data.estado": "cancelada" })
@@ -10087,7 +10095,7 @@ async function enviarCobroTerminal(montoCobro, idTicketTemporal) {
     try {
         // Hacemos la petición a NUESTRO PROPIO SERVIDOR de PocketBase
         // Reemplaza la URL si tu dominio es diferente
-        const respuesta = await fetch("https://sexy-starling.pikapod.net/api/cobrar-mp", {
+        const respuesta = await fetch("https://onyx-badger.pikapod.net/api/cobrar-mp", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -10120,7 +10128,7 @@ async function enviarCobroTerminal(montoCobro, idTicketTemporal) {
 }
 async function rastrearPagoTerminal(paymentIntentId, sucursal) {
     // Apuntamos directamente a nuestro nuevo túnel seguro en PocketBase
-    const url = `https://sexy-starling.pikapod.net/api/estado-mp/${sucursal}/${paymentIntentId}`;
+    const url = `https://onyx-badger.pikapod.net/api/estado-mp/${sucursal}/${paymentIntentId}`;
 
     return new Promise((resolve) => {
         // Creamos un ciclo que pregunta cada 3 segundos
@@ -12077,33 +12085,56 @@ window.actualizarAcumuladorSesion = async function(tipo, monto_operacion) {
         }
     }
 };
-window.abrirMontoInicialCaja = async function() {
-    let montoInput = prompt("💵 Ingresa el Fondo Inicial de Caja para abrir turno:", "0.00");
-    if (montoInput === null) return; 
+window.abrirMontoInicialCaja = function() {
+    let fondoInicialStr = prompt("Ingrese el Monto Físico Inicial en Caja:");
+    if (fondoInicialStr === null) return;
+    
+    let fondoInicial = parseFloat(fondoInicialStr);
+    if (isNaN(fondoInicial) || fondoInicial < 0) {
+        alert("⚠️ Monto inválido. Intente nuevamente.");
+        return;
+    }
 
-    let montoInicial = parseFloat(String(montoInput).trim()) || 0;
-    if (montoInicial > 20000 || montoInicial < 0) return alert("❌ Monto inválido. Máximo $20,000.");
-    if (!confirm(`🤔 ¿Confirmas que vas a abrir la caja con exactamente $${montoInicial.toFixed(2)}?`)) return;
+    let sucursalOrigen = typeof sucursalActual !== 'undefined' ? sucursalActual : "Matriz";
+    let cajeroOperando = typeof window.usuarioActivoGlobal !== 'undefined' ? window.usuarioActivoGlobal : "Desconocido";
+    let now = new Date();
 
-    let sucReal = String(typeof sucursalActual !== 'undefined' ? sucursalActual : "Matriz").replace(/📍/g, '').trim();
-    let cajeroActual = String(typeof usuarioActual !== 'undefined' ? usuarioActual : "Cajero").trim();
-
-    let datosSesion = {
-        sucursal: sucReal, cajero: cajeroActual, estado: 'abierta', monto_inicial: montoInicial,
-        total_ventas_efectivo: 0, total_ingresos: 0, total_gastos: 0, total_compras_efectivo: 0,
-        fecha_apertura: new Date().toISOString(), efectivo_esperado: montoInicial, efectivo_contado: 0, diferencia_caja: 0
+    let sesionLocal = {
+        cajero: cajeroOperando,
+        sucursal: sucursalOrigen,
+        monto_inicial: fondoInicial, // 👈 CORREGIDO PARA QUE COINCIDA CON LA BD
+        estado: 'abierta',
+        fecha_apertura: now.toISOString().replace('T', ' ') // PocketBase prefiere este formato de fecha
+        // 👈 ELIMINAMOS hora_apertura porque no existe en la BD
     };
 
-    try {
-        let record = await pb.collection('cajas_sesiones').create(datosSesion);
-        window.sesionCajaActual = record;
-        localStorage.setItem("pos_sesion_activa", JSON.stringify(record));
-        alert(`🟢 Turno abierto con éxito.\nFondo Inicial: $${montoInicial.toFixed(2)}`);
-        if (typeof window.actualizarIndicadorTurnoUI === 'function') window.actualizarIndicadorTurnoUI();
-    } catch (e) { alert("❌ No se pudo guardar en PocketBase."); }
+    window.sesionCajaActual = sesionLocal;
+    try { localStorage.setItem("pos_sesion_caja", JSON.stringify(sesionLocal)); } catch(e){}
+
+    if (typeof pb !== 'undefined') {
+        let datosAEnviar = { ...sesionLocal };
+        
+        // 🛡️ AÑADIMOS EL NEGOCIO_ID
+        if (pb.authStore.isValid && pb.authStore.model && pb.authStore.model.negocio_id) {
+            datosAEnviar.negocio_id = pb.authStore.model.negocio_id;
+        }
+
+        pb.collection("cajas_sesiones").create(datosAEnviar, { requestKey: null })
+        .then(record => {
+            window.sesionCajaActual = record;
+            try { localStorage.setItem("pos_sesion_caja", JSON.stringify(window.sesionCajaActual)); } catch(e){}
+            console.log("✅ Turno de caja abierto en la nube:", record.id);
+            if (typeof actualizarIndicadorTurnoUI === 'function') actualizarIndicadorTurnoUI();
+        })
+        .catch(err => {
+            console.error("❌ Error de PocketBase al abrir caja:", JSON.stringify(err.data, null, 2));
+        });
+    }
+
+    if (typeof actualizarIndicadorTurnoUI === 'function') actualizarIndicadorTurnoUI();
+    if (typeof actualizarMarcaDeAgua === 'function') actualizarMarcaDeAgua();
+    alert(`✅ Caja Abierta con Fondo Inicial de: $${fondoInicial.toFixed(2)}`);
 };
-// Variable temporal para recordar el dinero que pidió el sistema
-window.efectivoEsperadoTemporal = 0;
 
 window.cerrarTurnoActual = async function() {
     if (!window.sesionCajaActual || window.sesionCajaActual.estado !== 'abierta') return alert("⚠️ No hay sesión abierta.");
@@ -12580,7 +12611,7 @@ window.iniciarRadarTransferencias = function() {
         let miNombreLimpio = String(usuarioActual).trim().toLowerCase();
 
         try {
-            let url = `https://sexy-starling.pikapod.net/api/collections/transferencias/records?perPage=20&sort=-created&_t=${Date.now()}`;
+            let url = `https://onyx-badger.pikapod.net/api/collections/transferencias/records?perPage=20&sort=-created&_t=${Date.now()}`;
             let res = await fetch(url, { cache: 'no-store' });
             
             if (!res.ok) {
@@ -12695,7 +12726,7 @@ window.aceptarTransferencia = async function() {
 
     try {
         // Actualizar estado de la transferencia en PocketBase
-        let urlPB = `https://sexy-starling.pikapod.net/api/collections/transferencias/records/${idRegistroPB}`;
+        let urlPB = `https://onyx-badger.pikapod.net/api/collections/transferencias/records/${idRegistroPB}`;
         let resGet = await fetch(urlPB, { cache: 'no-store' });
         
         if (resGet.ok) {
@@ -14140,3 +14171,317 @@ function convertirPorcentajeADinero() {
         inputDinero.value = dineroEquivalente.toFixed(2); // Se redondea a 2 decimales para moneda
     }
 }
+// ====================================================================
+// ⏳ RELOJ DE ARENA: CONTROL DE SUSCRIPCIONES Y PERIODO DE PRUEBA
+// ====================================================================
+
+// ====================================================================
+// ⏳ RELOJ DE ARENA: 15 DÍAS DE PRUEBA + 3 DÍAS DE GRACIA + BLOQUEO
+// ====================================================================
+window.verificarSuscripcion = function() {
+    if (typeof pb === 'undefined' || !pb.authStore.isValid || !pb.authStore.model) return;
+
+    let usuario = pb.authStore.model;
+    let hoy = new Date();
+    
+    // El usuario Admin o soporte nunca caduca
+    if (usuario.username === 'Admin' || (usuario.email && usuario.email.includes('admin'))) return;
+
+    // 1. Calculamos la fecha base de vencimiento (15 días si no tiene fecha asignada aún)
+    let fechaCreacion = new Date(usuario.created);
+    let fechaVencimiento = usuario.vencimiento 
+        ? new Date(usuario.vencimiento) 
+        : new Date(fechaCreacion.getTime() + (15 * 24 * 60 * 60 * 1000));
+
+    // 2. Calculamos el fin del periodo de gracia (3 días extra)
+    let fechaFinGracia = new Date(fechaVencimiento.getTime() + (3 * 24 * 60 * 60 * 1000));
+
+    // Limpiamos banners previos si existieran
+    let bannerExistente = document.getElementById('banner-gracia-suscripcion');
+    if (bannerExistente) bannerExistente.remove();
+
+    // ================================================================
+    // ESTADO 3: BLOQUEO TOTAL (Pasaron los 15 días + los 3 de gracia)
+    // ================================================================
+    if (hoy > fechaFinGracia) {
+        let pantallaBloqueo = document.createElement('div');
+        pantallaBloqueo.id = 'pantalla-bloqueo-suscripcion';
+        pantallaBloqueo.style.position = 'fixed';
+        pantallaBloqueo.style.top = '0';
+        pantallaBloqueo.style.left = '0';
+        pantallaBloqueo.style.width = '100vw';
+        pantallaBloqueo.style.height = '100vh';
+        pantallaBloqueo.style.backgroundColor = 'rgba(15, 23, 42, 0.98)';
+        pantallaBloqueo.style.color = 'white';
+        pantallaBloqueo.style.zIndex = '999999';
+        pantallaBloqueo.style.display = 'flex';
+        pantallaBloqueo.style.flexDirection = 'column';
+        pantallaBloqueo.style.justifyContent = 'center';
+        pantallaBloqueo.style.alignItems = 'center';
+        pantallaBloqueo.style.fontFamily = 'Arial, sans-serif';
+        pantallaBloqueo.style.padding = '20px';
+        pantallaBloqueo.style.boxSizing = 'border-box';
+
+        pantallaBloqueo.innerHTML = `
+            <div style="text-align: center; max-width: 520px;">
+                <div style="font-size: 60px; margin-bottom: 10px;">⏳</div>
+                <h1 style="font-size: 2.2em; margin-bottom: 12px; color: #f87171;">Tu periodo de servicio ha vencido</h1>
+                <p style="font-size: 1.1em; color: #cbd5e1; line-height: 1.5; margin-bottom: 25px;">
+                    Tu prueba de 15 días y los 3 días de cortesía han concluido. Tus datos, inventario y ventas siguen guardados de forma segura. Para continuar operando tu caja, activa tu suscripción mensual.
+                </p>
+                <a href="https://link.mercadopago.com.mx/https://mpago.la/13wn92H" target="_blank" 
+                   style="background: #009ee3; color: white; padding: 14px 28px; font-size: 1.15em; font-weight: bold; text-decoration: none; border-radius: 8px; display: inline-block; box-shadow: 0 4px 10px rgba(0, 158, 227, 0.35);">
+                    💳 Activar Suscripción Mensual
+                </a>
+                <p style="margin-top: 25px; font-size: 0.85em; color: #64748b;">
+                    ¿Acabas de realizar tu pago? Recarga la página en 1 o 2 minutos mientras el sistema confirma la transacción.
+                </p>
+            </div>
+        `;
+        document.body.appendChild(pantallaBloqueo);
+        return false;
+    } 
+
+    // ================================================================
+    // ESTADO 2: PERIODO DE GRACIA (Día 16 al 18 - Permite venta pero avisa)
+    // ================================================================
+    else if (hoy > fechaVencimiento) {
+        let horasRestantesGracia = Math.max(1, Math.ceil((fechaFinGracia - hoy) / (1000 * 60 * 60)));
+        let diasGracia = Math.ceil(horasRestantesGracia / 24);
+
+        let banner = document.createElement('div');
+        banner.id = 'banner-gracia-suscripcion';
+        banner.style.position = 'fixed';
+        banner.style.top = '0';
+        banner.style.left = '0';
+        banner.style.width = '100%';
+        banner.style.backgroundColor = '#fef08a';
+        banner.style.color = '#854d0e';
+        banner.style.padding = '8px 16px';
+        banner.style.textAlign = 'center';
+        banner.style.fontWeight = 'bold';
+        banner.style.fontSize = '14px';
+        banner.style.zIndex = '99999';
+        banner.style.boxShadow = '0 2px 5px rgba(0,0,0,0.15)';
+        banner.style.display = 'flex';
+        banner.style.justifyContent = 'center';
+        banner.style.alignItems = 'center';
+        banner.style.gap = '12px';
+
+        banner.innerHTML = `
+            <span>⚠️ Tu prueba gratuita de 15 días ha finalizado. Tienes un periodo de gracia de <b>${diasGracia} día(s)</b> restante(s) antes de que el sistema se pause.</span>
+            <a href="https://link.mercadopago.com.mx/https://mpago.la/13wn92H" target="_blank" 
+               style="background: #854d0e; color: white; padding: 4px 12px; border-radius: 4px; text-decoration: none; font-size: 12px;">
+                Suscribirme ahora
+            </a>
+        `;
+        document.body.prepend(banner);
+        return true;
+    }
+
+    // ================================================================
+    // ESTADO 1: PRUEBA ACTIVA (Día 1 al 15 - Acceso libre)
+    // ================================================================
+    else {
+        let diasRestantesPrueba = Math.ceil((fechaVencimiento - hoy) / (1000 * 60 * 60 * 24));
+        console.log(`⏱️ Periodo de prueba activo: quedan ${diasRestantesPrueba} día(s).`);
+        return true;
+    }
+};
+
+// Disparamos la revisión en cuanto el sistema carga
+setTimeout(() => {
+    if (typeof window.verificarSuscripcion === 'function') window.verificarSuscripcion();
+}, 2000);
+// ====================================================================
+// 🚀 SISTEMA SAAS: REGISTRO DE NUEVOS CLIENTES
+// ====================================================================
+window.registrarNuevoNegocio = async function() {
+    let btn = document.getElementById('btn_crear_cuenta');
+    let negocio = document.getElementById('reg_negocio').value.trim();
+    let email = document.getElementById('reg_correo').value.trim();
+    let pass = document.getElementById('reg_pass').value;
+    let quiereCatalogo = document.getElementById('reg_cargar_catalogo') ? document.getElementById('reg_cargar_catalogo.checked') : false;
+
+    if (!negocio || !email || !pass) return alert("⚠️ Por favor llena todos los campos.");
+    if (pass.length < 8) return alert("⚠️ La contraseña debe tener al menos 8 caracteres.");
+    if (typeof pb === 'undefined') return alert("❌ Error de conexión con el servidor.");
+
+    btn.disabled = true;
+    btn.innerText = "Creando tu sistema... ⏳";
+
+    try {
+        // 1. Identificador de negocio único
+        let sufijoUnico = Date.now().toString().slice(-6);
+        let nombreLimpio = negocio.toLowerCase().replace(/[^a-z0-9]/g, '');
+        let nuevoNegocioId = `neg_${nombreLimpio}_${sufijoUnico}`;
+
+        // 2. Registro maestro en PocketBase (colección users)
+        let datosUsuario = {
+            "email": email,
+            "password": pass,
+            "passwordConfirm": pass,
+            "name": negocio,
+            "negocio_id": nuevoNegocioId,
+            "emailVisibility": true
+        };
+
+        await pb.collection('users').create(datosUsuario, { requestKey: null });
+
+        // 3. Autenticación automática de la terminal
+        await pb.collection('users').authWithPassword(email, pass, { requestKey: null });
+
+        // 4. Crear el cajero Admin con PIN por defecto '1234'
+        window.usuariosData = {
+            "Admin": {
+                pin: "1234",
+                tabs: ["v-tab", "c-tab", "i-tab", "cli-tab", "r-tab", "u-tab", "kardex-tab", "audi-tab"],
+                permisos: ["inv_ciego", "auditoria"]
+            }
+        };
+        try { localStorage.setItem("pos_usuarios_v1", JSON.stringify(window.usuariosData)); } catch(e){}
+
+        // Guardar el cajero Admin en la colección usuarios de PocketBase
+        try {
+            await pb.collection('usuarios').create({
+                usuario: "Admin",
+                pin: "1234",
+                sucursal: "Matriz",
+                negocio_id: nuevoNegocioId,
+                permisos: ["inv_ciego", "auditoria"]
+            }, { requestKey: null });
+        } catch(eCaj) {
+            console.warn("Aviso al crear cajero Admin en nube:", eCaj);
+        }
+
+        // 5. Inyección del catálogo base si fue seleccionado
+        if (quiereCatalogo) {
+            btn.innerText = "Instalando catálogo base... 📦";
+            try {
+                let respuesta = await fetch('./catalogo_base.json');
+                if (respuesta.ok) {
+                    let catalogoSugerido = await respuesta.json();
+                    Object.keys(catalogoSugerido).forEach(codigo => {
+                        catalogoSugerido[codigo].negocio_id = nuevoNegocioId;
+                    });
+
+                    window.inv = catalogoSugerido;
+                    try { localStorage.setItem("pos_precision_v6", JSON.stringify(window.inv)); } catch(e) {}
+                    if (window.dbLocal && dbLocal.inventario) {
+                        await dbLocal.inventario.bulkPut(Object.values(catalogoSugerido)).catch(() => {});
+                    }
+                }
+            } catch (errCatalogo) {
+                console.warn("No se pudo cargar el catálogo base:", errCatalogo);
+            }
+        }
+
+        // 6. Entrar al sistema de inmediato
+        document.getElementById('modalRegistro').style.display = 'none';
+        window.usuarioActual = "Admin"; 
+        
+        if (document.getElementById('ui_current_user')) document.getElementById('ui_current_user').innerText = "Admin (" + negocio + ")"; 
+        if (document.getElementById('login-screen')) document.getElementById('login-screen').style.display = 'none'; 
+        
+        document.getElementById('ui_sucursal').disabled = false; 
+        document.querySelectorAll('.t-btn').forEach(b => b.style.display = 'block');
+        
+        let mensaje = `✅ ¡Bienvenido a PosProGem, ${negocio}!\n\nTu PIN de acceso inicial para Admin es: 1234\n(Podrás cambiarlo en la pestaña de Usuarios).`;
+        alert(mensaje);
+        
+        if (typeof window.verificarSuscripcion === 'function') window.verificarSuscripcion();
+        if (typeof renderI === 'function') renderI();
+
+    } catch (error) {
+        console.error("Error al registrar:", error);
+        alert("❌ Error al crear la cuenta. Verifica que el correo no esté registrado y la contraseña tenga al menos 8 caracteres.");
+    } finally {
+        btn.disabled = false;
+        btn.innerText = "Comenzar ahora 🚀";
+    }
+};
+// ====================================================================
+// 🔗 GESTOR DE TERMINALES SAAS (VINCULACIÓN Y CAJEROS)
+// ====================================================================
+
+window.revisarEstadoTerminalSaaS = async function() {
+    let formSaaS = document.getElementById('form_vincular_terminal');
+    let formPIN = document.getElementById('form_cajeros_pin');
+    let titulo = document.getElementById('login_titulo');
+
+    // 1. ¿La computadora tiene sesión maestra viva?
+    if (typeof pb !== 'undefined' && pb.authStore.isValid) {
+        
+        // MODO OPERACIÓN: Mostramos selector de PINs
+        if(formSaaS) formSaaS.style.display = 'none';
+        if(formPIN) formPIN.style.display = 'flex';
+        if(titulo) titulo.innerHTML = '➡️ Iniciar Sesión';
+
+        // Descargamos de inmediato a los cajeros de ESTE negocio desde PocketBase
+        try {
+            let records = await pb.collection('usuarios').getFullList({ requestKey: null });
+            if (records.length > 0) {
+                let nuevosCajeros = {};
+                records.forEach(r => {
+                    nuevosCajeros[r.usuario] = { 
+                        pin: r.pin, 
+                        tabs: r.tabs || ["v-tab", "c-tab", "i-tab", "cli-tab", "r-tab", "u-tab", "kardex-tab", "audi-tab"], 
+                        permisos: r.permisos || [] 
+                    };
+                });
+                window.usuariosData = nuevosCajeros;
+                try { localStorage.setItem("pos_usuarios_v1", JSON.stringify(usuariosData)); } catch(e){}
+            }
+        } catch(e) {
+            console.warn("No se pudieron cargar cajeros de la nube, usando memoria local.");
+        }
+
+        // Llenamos la lista desplegable visualmente
+        let select = document.getElementById('login_user');
+        if (select && window.usuariosData) {
+            select.innerHTML = "";
+            Object.keys(window.usuariosData).forEach(u => {
+                select.innerHTML += `<option value="${u}">${u}</option>`;
+            });
+        }
+
+    } else {
+        // MODO VINCULACIÓN: Computadora nueva o limpia
+        if(formSaaS) formSaaS.style.display = 'flex';
+        if(formPIN) formPIN.style.display = 'none';
+        if(titulo) titulo.innerHTML = '🔗 Vincular Computadora';
+    }
+};
+
+window.vincularTerminalSaaS = async function() {
+    let em = document.getElementById('login_saas_email').value.trim();
+    let pa = document.getElementById('login_saas_pass').value;
+    if(!em || !pa) return alert("⚠️ Ingresa correo y contraseña de administrador.");
+
+    let btn = event.target;
+    btn.innerText = "Vinculando...";
+    btn.disabled = true;
+
+    try {
+        await pb.collection('users').authWithPassword(em, pa, { requestKey: null });
+        localStorage.setItem('pos_negocio_id_saas', pb.authStore.model.negocio_id);
+        
+        alert("✅ Terminal vinculada con éxito. El sistema descargará tus datos.");
+        document.getElementById('login_saas_email').value = '';
+        document.getElementById('login_saas_pass').value = '';
+        
+        // Una vez logueado, forzamos a recargar la pantalla para mostrar los PINs
+        await revisarEstadoTerminalSaaS();
+        
+    } catch(e) {
+        alert("❌ Acceso denegado. Correo o contraseña incorrectos.");
+    } finally {
+        btn.innerText = "VINCULAR TERMINAL 🔗";
+        btn.disabled = false;
+    }
+};
+
+// ⚡ Ejecutar revisión al cargar el sistema
+setTimeout(() => {
+    if(typeof revisarEstadoTerminalSaaS === 'function') revisarEstadoTerminalSaaS();
+}, 1000);
