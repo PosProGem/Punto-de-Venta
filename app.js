@@ -13,7 +13,44 @@ window.dbLocal.version(2).stores({
 const pb = new PocketBase('https://onyx-badger.pikapod.net');
 pb.autoCancellation(false);
 
+// ====================================================================
+// 🛡️ SELLO GLOBAL MULTI-EMPRESA (INTERCEPTOR DE POCKETBASE)
+// ====================================================================
+if (typeof pb !== 'undefined') {
+    pb.beforeSend = function (url, options) {
+        let miNegocioId = null;
+        if (pb.authStore.isValid && pb.authStore.model && pb.authStore.model.negocio_id) {
+            miNegocioId = pb.authStore.model.negocio_id;
+            localStorage.setItem('pos_negocio_id_saas', miNegocioId);
+        } else {
+            miNegocioId = localStorage.getItem('pos_negocio_id_saas');
+        }
 
+        if (miNegocioId && (options.method === 'POST' || options.method === 'PATCH')) {
+            try {
+                let datosPayload = JSON.parse(options.body);
+                
+                datosPayload.negocio_id = miNegocioId;
+                if (datosPayload.data && typeof datosPayload.data === 'object') {
+                    datosPayload.data.negocio_id = miNegocioId;
+                }
+                
+                // 🚨 ESCUDO ANTI-ERROR 400: Borramos los IDs locales para que PocketBase genere los oficiales
+                if (datosPayload.id && (datosPayload.id.length < 15 || datosPayload.id.includes('_'))) {
+                    delete datosPayload.id;
+                }
+                if (datosPayload.data && datosPayload.data.id && (datosPayload.data.id.length < 15 || datosPayload.data.id.includes('_'))) {
+                    delete datosPayload.data.id;
+                }
+
+                options.body = JSON.stringify(datosPayload);
+            } catch (e) {
+                // Pasa intacto si es un FormData
+            }
+        }
+        return { url, options };
+    };
+}
 // ====================================================================
 // === 2. ADAPTADOR POCKETBASE (MOTOR BLINDADO ANTI-RESET Y ANTI-CLONES) ===
 // ====================================================================
@@ -1917,16 +1954,33 @@ window.intentarLogin = async function() {
             window.verificarSuscripcion();
         }
 
-        // Sincronización de sesión y turnos
+        // 🏪 🚨 AUTO-ROAMING DE TURNO CON MEMORIA LOCAL
         setTimeout(async () => {
+            // 1. Primero confiamos en la memoria local como respaldo
+            if (!window.sesionCajaActual) {
+                try { 
+                    let sesionGuardada = JSON.parse(localStorage.getItem('pos_sesion_caja')); 
+                    if (sesionGuardada && sesionGuardada.estado === 'abierta') {
+                        window.sesionCajaActual = sesionGuardada;
+                    }
+                } catch(e) {}
+            }
+
+            // 2. Intentamos buscar la versión más reciente en la nube
             try {
                 let baseUrl = (typeof pb !== 'undefined' && pb.baseUrl) ? pb.baseUrl : 'https://onyx-badger.pikapod.net';
-                let miNegocioId = (typeof pb !== 'undefined' && pb.authStore?.model?.negocio_id) ? pb.authStore.model.negocio_id : '';
-                let filtroSesion = `(estado='abierta' && cajero='${u}')`;
-                if (miNegocioId) filtroSesion = `(estado='abierta' && cajero='${u}' && negocio_id='${miNegocioId}')`;
+                let miNegocioId = (typeof pb !== 'undefined' && pb.authStore?.model?.negocio_id) ? pb.authStore.model.negocio_id : localStorage.getItem('pos_negocio_id_saas');
+                
+                let filtroSesion = `estado='abierta' && cajero='${u}'`;
+                if (miNegocioId) filtroSesion += ` && negocio_id='${miNegocioId}'`;
 
                 let urlSesion = `${baseUrl}/api/collections/cajas_sesiones/records?filter=${encodeURIComponent(filtroSesion)}&sort=-created&limit=1&_t=${Date.now()}`;
-                let res = await fetch(urlSesion, { cache: 'no-store' });
+                
+                let res = await fetch(urlSesion, { 
+                    headers: { 'Authorization': pb.authStore.token }, // <- Mandamos el token de seguridad
+                    cache: 'no-store' 
+                });
+                
                 if (res.ok) {
                     let data = await res.json();
                     if (data.items && data.items.length > 0) {
@@ -1934,13 +1988,16 @@ window.intentarLogin = async function() {
                         try { localStorage.setItem("pos_sesion_caja", JSON.stringify(window.sesionCajaActual)); } catch(e){}
                     }
                 }
-            } catch(e) {}
+            } catch(e) {
+                console.warn("No se pudo conectar con la nube para verificar la caja. Usando memoria local.");
+            }
 
+            if (typeof actualizarIndicadorTurnoUI === 'function') actualizarIndicadorTurnoUI();
+
+            // 3. Si definitivamente no hay caja ni local ni en la nube, pedimos abrirla
             if (!window.sesionCajaActual || window.sesionCajaActual.estado !== 'abierta') {
                 let deseaAbrir = confirm(`🏪 No tienes ningún turno abierto, ${u}.\n\n¿Deseas INICIAR TURNO e ingresar el Fondo Inicial ahora?`);
-                if (deseaAbrir && typeof abrirMontoInicialCaja === 'function') {
-                    abrirMontoInicialCaja();
-                }
+                if (deseaAbrir && typeof abrirMontoInicialCaja === 'function') abrirMontoInicialCaja();
             }
         }, 400);
 
@@ -14299,7 +14356,9 @@ setTimeout(() => {
 window.registrarNuevoNegocio = async function() {
     let btn = document.getElementById('btn_crear_cuenta');
     let negocio = document.getElementById('reg_negocio').value.trim();
-    let email = document.getElementById('reg_correo').value.trim();
+    let email = document.getElementById('reg_correo').value.trim().toLowerCase();
+// Si pusiste el de confirmación, también cámbialo:
+// let emailConfirm = document.getElementById('reg_correo_confirm').value.trim().toLowerCase();
     let pass = document.getElementById('reg_pass').value;
     let quiereCatalogo = document.getElementById('reg_cargar_catalogo') ? document.getElementById('reg_cargar_catalogo.checked') : false;
 
@@ -14454,7 +14513,7 @@ window.revisarEstadoTerminalSaaS = async function() {
 };
 
 window.vincularTerminalSaaS = async function() {
-    let em = document.getElementById('login_saas_email').value.trim();
+    let em = document.getElementById('login_saas_email').value.trim().toLowerCase();
     let pa = document.getElementById('login_saas_pass').value;
     if(!em || !pa) return alert("⚠️ Ingresa correo y contraseña de administrador.");
 
@@ -14485,3 +14544,25 @@ window.vincularTerminalSaaS = async function() {
 setTimeout(() => {
     if(typeof revisarEstadoTerminalSaaS === 'function') revisarEstadoTerminalSaaS();
 }, 1000);
+// ====================================================================
+// 🔓 DESVINCULAR TERMINAL SAAS
+// ====================================================================
+window.desvincularTerminal = function() {
+    let confirmar = confirm("⚠️ ¿Estás seguro de que deseas desvincular esta computadora?\n\nTus datos en la nube están a salvo, pero esta pantalla ya no dejará cobrar con PIN hasta que el dueño vuelva a ingresar su correo y contraseña.");
+    
+    if (confirmar) {
+        // 1. Cerramos la sesión maestra de PocketBase
+        if (typeof pb !== 'undefined') pb.authStore.clear();
+        
+        // 2. Borramos la memoria vinculante del navegador
+        localStorage.removeItem('pos_negocio_id_saas');
+        localStorage.removeItem('pos_usuarios_v1');
+        localStorage.removeItem('pos_sesion_caja');
+        window.usuariosData = {};
+        
+        // 3. Actualizamos la pantalla de inmediato para ocultar los PINs
+        if (typeof revisarEstadoTerminalSaaS === 'function') revisarEstadoTerminalSaaS();
+        
+        alert("✅ Terminal desvinculada exitosamente.");
+    }
+};
