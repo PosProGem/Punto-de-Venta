@@ -52,7 +52,7 @@ if (typeof pb !== 'undefined') {
         }
         
         // 🚨 EL SECRETO: Retornar las opciones directamente para que PocketBase las acepte
-        return options; 
+        return { url, options }; 
     };
 }
 // ====================================================================
@@ -14243,8 +14243,20 @@ window.registrarNuevoNegocio = async function() {
                 let respuesta = await fetch('./catalogo_base.json');
                 if (respuesta.ok) {
                     let catalogoSugerido = await respuesta.json();
+                    
                     Object.keys(catalogoSugerido).forEach(codigo => {
-                        catalogoSugerido[codigo].negocio_id = nuevoNegocioId;
+                        let prod = catalogoSugerido[codigo];
+                        
+                        // 1. Le asignamos el ID del nuevo negocio
+                        prod.negocio_id = nuevoNegocioId;
+                        
+                        // 2. 🚨 LIMPIEZA EXTREMA: Borramos cualquier rastro de stock o ventas del archivo original
+                        prod.can = 0;
+                        prod.stock = {};
+                        prod.inv_sucursales = {};
+                        prod.ventas_mes_actual = 0;
+                        prod.ventas_mes_anterior = 0;
+                        // Opcional: prod.cos = 0; // Si también quieres borrar el costo de compra y dejar solo el precio de venta (pv)
                     });
 
                     window.inv = catalogoSugerido;
@@ -14257,6 +14269,7 @@ window.registrarNuevoNegocio = async function() {
                 console.warn("No se pudo cargar el catálogo base:", errCatalogo);
             }
         }
+            
 
         // 6. Entrar al sistema de inmediato
         document.getElementById('modalRegistro').style.display = 'none';
