@@ -14,7 +14,7 @@ const pb = new PocketBase('https://onyx-badger.pikapod.net');
 pb.autoCancellation(false);
 
 // ====================================================================
-// 🛡️ SELLO GLOBAL MULTI-EMPRESA (INTERCEPTOR DE POCKETBASE)
+// 🛡️ SELLO GLOBAL MULTI-EMPRESA (INTERCEPTOR BLINDADO)
 // ====================================================================
 if (typeof pb !== 'undefined') {
     pb.beforeSend = function (url, options) {
@@ -27,23 +27,28 @@ if (typeof pb !== 'undefined') {
         }
 
         if (miNegocioId && (options.method === 'POST' || options.method === 'PATCH')) {
-            try {
-                let datosPayload = JSON.parse(options.body);
-                
-                // 1. Estampar firma SaaS a nivel de la tabla principal
-                datosPayload.negocio_id = miNegocioId;
-                
-                // 2. 🚨 ESCUDO ANTI-ERROR 400: Eliminamos cualquier ID local 
-                // para que la base de datos no lo confunda con el suyo
-                if (datosPayload.id) {
-                    delete datosPayload.id;
-                }
-                
-                // 3. Limpieza profunda
-                delete datosPayload.test;
+            if (options.body && !(options.body instanceof FormData)) {
+                try {
+                    let esTexto = typeof options.body === 'string';
+                    let payload = esTexto ? JSON.parse(options.body) : options.body;
+                    
+                    // 1. Inyectamos la firma obligatoria
+                    payload.negocio_id = miNegocioId;
+                    
+                    // 2. Destruimos cualquier ID falso (13 dígitos) para que PocketBase genere el de 15
+                    if (payload.id && String(payload.id).length !== 15) {
+                        delete payload.id;
+                    }
+                    
+                    // 3. Limpiamos basura
+                    delete payload.test;
 
-                options.body = JSON.stringify(datosPayload);
-            } catch (e) {}
+                    // Empaquetamos de nuevo en el mismo formato que venía
+                    options.body = esTexto ? JSON.stringify(payload) : payload;
+                } catch (e) {
+                    console.warn("⚠️ El Sello Global no pudo procesar este paquete:", e);
+                }
+            }
         }
         return { url, options };
     };
