@@ -14,10 +14,16 @@ const pb = new PocketBase('https://onyx-badger.pikapod.net');
 pb.autoCancellation(false);
 
 // ====================================================================
-// 🛡️ SELLO GLOBAL MULTI-EMPRESA (INTERCEPTOR BLINDADO V2)
+// 🛡️ SELLO GLOBAL MULTI-EMPRESA (INTERCEPTOR BLINDADO V3)
 // ====================================================================
 if (typeof pb !== 'undefined') {
     pb.beforeSend = function (url, options) {
+        
+        // 🛑 REGLA DE ORO: Jamás tocar las peticiones de Login o creación de usuarios de PocketBase
+        if (url.includes('/auth-with-password') || url.includes('/auth-refresh') || url.includes('/api/collections/users/')) {
+            return { url, options }; // Dejar pasar intacto
+        }
+
         let miNegocioId = null;
         if (pb.authStore.isValid && pb.authStore.model && pb.authStore.model.negocio_id) {
             miNegocioId = pb.authStore.model.negocio_id;
@@ -51,7 +57,6 @@ if (typeof pb !== 'undefined') {
             }
         }
         
-        // 🚨 EL SECRETO: Retornar las opciones directamente para que PocketBase las acepte
         return { url, options }; 
     };
 }
