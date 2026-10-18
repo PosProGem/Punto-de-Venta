@@ -14,7 +14,7 @@ const pb = new PocketBase('https://onyx-badger.pikapod.net');
 pb.autoCancellation(false);
 
 // ====================================================================
-// 🛡️ SELLO GLOBAL MULTI-EMPRESA (INTERCEPTOR BLINDADO)
+// 🛡️ SELLO GLOBAL MULTI-EMPRESA (INTERCEPTOR BLINDADO V2)
 // ====================================================================
 if (typeof pb !== 'undefined') {
     pb.beforeSend = function (url, options) {
@@ -40,17 +40,19 @@ if (typeof pb !== 'undefined') {
                         delete payload.id;
                     }
                     
-                    // 3. Limpiamos basura
+                    // 3. Limpiamos basura de diagnóstico
                     delete payload.test;
 
                     // Empaquetamos de nuevo en el mismo formato que venía
                     options.body = esTexto ? JSON.stringify(payload) : payload;
                 } catch (e) {
-                    console.warn("⚠️ El Sello Global no pudo procesar este paquete:", e);
+                    console.warn("⚠️ Sello Global no pudo procesar este paquete:", e);
                 }
             }
         }
-        return { url, options };
+        
+        // 🚨 EL SECRETO: Retornar las opciones directamente para que PocketBase las acepte
+        return options; 
     };
 }
 // ====================================================================
@@ -6481,7 +6483,7 @@ window.guardarMovimiento = async function() {
 
         if (typeof pb !== 'undefined') {
             try {
-                // Mandamos a PocketBase SIN forzar el "id" principal, solo el doc_id y la data
+                // Mandamos a PocketBase SIN forzar el "id" principal
                 await pb.collection("movimientos").create({ 
                     doc_id: String(idMovimiento), 
                     data: mRetiro 
@@ -6496,7 +6498,8 @@ window.guardarMovimiento = async function() {
                 await pb.collection("transferencias").create(datosTransferencia, { requestKey: null });
 
             } catch (e) {
-                console.error("Error guardando transferencia en la nube:", e);
+                // 🔥 SI HAY ERROR, LO IMPRIME EXACTO PARA SABER QUÉ COLUMNA FALTA
+                console.error("❌ ERROR EXACTO EN TRANSFERENCIA NUBE:", e.data ? JSON.stringify(e.data, null, 2) : e);
             }
         }
 
@@ -6519,13 +6522,13 @@ window.guardarMovimiento = async function() {
 
         if (typeof pb !== 'undefined') {
             try {
-                // Mandamos a PocketBase SIN forzar el "id" principal
                 await pb.collection("movimientos").create({ 
                     doc_id: String(idMovimiento), 
                     data: nuevoMov 
                 }, { requestKey: null });
             } catch (e) {
-                console.warn("Error subiendo movimiento:", e);
+                // 🔥 SI HAY ERROR, LO IMPRIME EXACTO
+                console.error("❌ ERROR EXACTO EN MOVIMIENTO NUBE:", e.data ? JSON.stringify(e.data, null, 2) : e);
             }
         }
 
