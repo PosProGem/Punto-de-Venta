@@ -1985,7 +1985,7 @@ window.intentarLogin = async function() {
         }
 
         if (!usuariosData[u]) {
-            usuariosData[u] = { pin: p, tabs: ["v-tab", "c-tab", "i-tab", "cli-tab", "r-tab", "u-tab", "kardex-tab", "audi-tab"], permisos: ["inv_ciego", "auditoria"] };
+            usuariosData[u] = { pin: p, tabs: ["v-tab", "c-tab", "prov-tab", "k-tab", "i-tab", "cli-tab", "pro-tab", "rec-tab", "r-tab", "u-tab", "kardex-tab", "audi-tab"], permisos: ["inv_ciego", "auditoria"] };
             try { localStorage.setItem("pos_usuarios_v1", JSON.stringify(usuariosData)); } catch(e){}
         }
 
@@ -2000,7 +2000,7 @@ window.intentarLogin = async function() {
         }
         
         document.querySelectorAll('.t-btn').forEach(btn => btn.style.display = 'none');
-        let allowedTabs = usuariosData[u].tabs || ["v-tab", "c-tab", "i-tab", "cli-tab", "r-tab", "u-tab", "kardex-tab", "audi-tab"];
+        let allowedTabs = usuariosData[u].tabs || ["v-tab", "c-tab", "prov-tab", "k-tab", "i-tab", "cli-tab", "pro-tab", "rec-tab", "r-tab", "u-tab", "kardex-tab", "audi-tab"];
         
         allowedTabs.forEach(tabId => { 
             let btn = document.getElementById('btn_' + tabId); 
@@ -2161,69 +2161,89 @@ function renderUsuarios() {
     let lista = document.getElementById('u_lista');
     if (lista) lista.innerHTML = html;
 }
-function guardarUsuario() {
+window.guardarUsuario = async function() {
     let nom = document.getElementById('u_nombre').value.trim(); 
     let pin = document.getElementById('u_pin').value.trim();
     if(!nom || !pin) return alert("Llena nombre y PIN");
     
     let tabs = []; 
-    // Lista completa incluyendo obligatoriamente el kardex-tab
     ['v-tab', 'c-tab', 'prov-tab', 'k-tab', 'i-tab', 'cli-tab', 'pro-tab', 'rec-tab', 'r-tab', 'u-tab', 'kardex-tab'].forEach(t => {
-        if(document.getElementById('chk_' + t) && document.getElementById('chk_' + t).checked) tabs.push(t); 
+        let chk = document.getElementById('chk_' + t);
+        if(chk && chk.checked) tabs.push(t); 
     });
     
     if(tabs.length === 0) return alert("Debes seleccionar al menos un módulo permitido.");
     
-    // Recolectar sucursales marcadas
     let sucursalesSeleccionadas = Array.from(document.querySelectorAll('.cb-sucursal:checked')).map(cb => cb.value).join(',');
-
-    // 🎯 CORRECCIÓN: Recolectamos el estado de las casillas especiales
+    
     let permisos = [];
     if (document.getElementById('perm_inv_ciego') && document.getElementById('perm_inv_ciego').checked) permisos.push('inv_ciego');
     if (document.getElementById('perm_auditoria') && document.getElementById('perm_auditoria').checked) permisos.push('auditoria');
-
-    // Preparar el objeto incluyendo la propiedad 'permisos'
+    
     let objetoUsuario = { 
         pin: pin, 
         tabs: tabs, 
         sucursales_permitidas: sucursalesSeleccionadas,
-        permisos: permisos // <-- ¡Esto es lo que faltaba guardar!
+        permisos: permisos 
     };
-
-    // Actualización inmediata local
-    usuariosData[nom] = objetoUsuario;
-    localStorage.setItem("pos_usuarios_v9", JSON.stringify(usuariosData));
     
-    // Enviamos a PocketBase
-    db.collection("usuarios").doc(nom).set(objetoUsuario)
-    .then(() => {
-        alert("✅ Usuario guardado y sincronizado en la NUBE."); 
-        
-        document.getElementById('u_nombre').value = ''; 
-        document.getElementById('u_pin').value = ''; 
-        document.getElementById('u_nombre').readOnly = false;
-        document.getElementById('u_nombre').style.background = '#fff';
-        
-        // Limpiar checks estándar
-        ['v-tab', 'c-tab', 'prov-tab', 'k-tab', 'i-tab', 'cli-tab', 'pro-tab', 'rec-tab', 'r-tab', 'u-tab', 'kardex-tab'].forEach(t => {
-            let chk = document.getElementById('chk_' + t);
-            if(chk) chk.checked = false;
-        });
+    // 1. Guardado Local
+    window.usuariosData = window.usuariosData || {};
+    window.usuariosData[nom] = objetoUsuario;
+    try { localStorage.setItem("pos_usuarios_v1", JSON.stringify(window.usuariosData)); } catch(e){}
+    try { localStorage.setItem("pos_usuarios_v9", JSON.stringify(window.usuariosData)); } catch(e){}
 
-        // 🎯 CORRECCIÓN: Limpiar los nuevos checks especiales
-        if (document.getElementById('perm_inv_ciego')) document.getElementById('perm_inv_ciego').checked = false;
-        if (document.getElementById('perm_auditoria')) document.getElementById('perm_auditoria').checked = false;
-
-        document.querySelectorAll('.cb-sucursal').forEach(cb => cb.checked = false);
-
-        if(typeof renderUsuarios === 'function') renderUsuarios();
-        initLoginSelect();
-    })
-    .catch(error => { 
-        console.error(error); 
-        alert("⚠️ Guardado localmente, pero hubo un bache al subir a la nube."); 
+    // 2. Subida a la Nube (SaaS)
+    if (typeof pb !== 'undefined' && pb.authStore && pb.authStore.isValid) {
+        let miNegocioId = pb.authStore.model.negocio_id;
+        try {
+            let userNube = {
+                doc_id: nom,
+                negocio_id: miNegocioId,
+                data: objetoUsuario
+            };
+            
+            // Revisa si existe para actualizar o crear
+            try {
+                let existe = await pb.collection('usuarios').getFirstListItem(`doc_id="${nom}" && negocio_id="${miNegocioId}"`, { requestKey: null });
+                await pb.collection('usuarios').update(existe.id, userNube, { requestKey: null });
+            } catch(e) {
+                await pb.collection('usuarios').create(userNube, { requestKey: null });
+            }
+            console.log("✅ Cajero guardado en PocketBase.");
+        } catch(errPB) {
+            console.error("⚠️ Error guardando cajero en nube:", errPB);
+        }
+    }
+    
+    // 3. Limpieza de Pantalla
+    alert("✅ Cajero guardado correctamente."); 
+    document.getElementById('u_nombre').value = ''; 
+    document.getElementById('u_pin').value = ''; 
+    document.getElementById('u_nombre').readOnly = false;
+    document.getElementById('u_nombre').style.background = '#fff';
+    
+    ['v-tab', 'c-tab', 'prov-tab', 'k-tab', 'i-tab', 'cli-tab', 'pro-tab', 'rec-tab', 'r-tab', 'u-tab', 'kardex-tab'].forEach(t => {
+        let chk = document.getElementById('chk_' + t);
+        if(chk) chk.checked = false;
     });
-}
+    
+    if (document.getElementById('perm_inv_ciego')) document.getElementById('perm_inv_ciego').checked = false;
+    if (document.getElementById('perm_auditoria')) document.getElementById('perm_auditoria').checked = false;
+    document.querySelectorAll('.cb-sucursal').forEach(cb => cb.checked = false);
+    
+    // 4. Actualizar Tablas y Menú de Login (ESTA ES LA CLAVE)
+    if(typeof renderUsuarios === 'function') renderUsuarios();
+    
+    // 🔄 Redibuja el menú del login
+    let selectLogin = document.getElementById('login_user');
+    if (selectLogin) {
+        selectLogin.innerHTML = "";
+        Object.keys(window.usuariosData).forEach(u => {
+            selectLogin.innerHTML += `<option value="${u}">${u}</option>`;
+        });
+    }
+};
 function editarUsuario(nom) {
     let u = usuariosData[nom];
     if(!u) return;
@@ -14400,17 +14420,31 @@ setTimeout(() => {
 // ====================================================================
 window.registrarNuevoNegocio = async function() {
     let btn = document.getElementById('btn_crear_cuenta');
+    
+    // 👤 NUEVO CAMPO: Obtenemos el nombre de la persona
+    let nombrePersonal = document.getElementById('reg_nombre') ? document.getElementById('reg_nombre').value.trim() : "Admin";
+    
     let negocio = document.getElementById('reg_negocio').value.trim();
     let email = document.getElementById('reg_correo').value.trim().toLowerCase();
     let pass = document.getElementById('reg_pass').value;
     let quiereCatalogo = document.getElementById('reg_cargar_catalogo') ? document.getElementById('reg_cargar_catalogo').checked : false;
 
-    if (!negocio || !email || !pass) return alert("⚠️ Por favor llena todos los campos.");
+    // Actualizamos la validación para que también exija el Nombre Personal
+    if (!nombrePersonal || !negocio || !email || !pass) return alert("⚠️ Por favor llena todos los campos.");
     if (pass.length < 8) return alert("⚠️ La contraseña debe tener al menos 8 caracteres.");
     if (typeof pb === 'undefined') return alert("❌ Error de conexión.");
 
+    // 🛡️ VALIDACIÓN CAPTCHA ANTI-BOTS
+    let inputCaptcha = document.getElementById('reg_captcha');
+    if (inputCaptcha && parseInt(inputCaptcha.value) !== window.captchaCorrecto) {
+        if (typeof prepararCaptcha === 'function') prepararCaptcha();
+        return alert("🤖 Respuesta de seguridad incorrecta. Por favor, resuelve la suma para comprobar que eres humano.");
+    }
+
     btn.disabled = true;
     btn.innerText = "Creando tu sistema... ⏳";
+    
+    // ... (aquí continúa tu bloque try { ... } intacto)
 
     try {
         let sufijoUnico = Date.now().toString().slice(-6);
@@ -14433,7 +14467,12 @@ window.registrarNuevoNegocio = async function() {
         };
 
         await pb.collection('users').create(datosUsuario, { requestKey: null });
-        
+        // 📧 ENVIAR CORREO DE VERIFICACIÓN AUTOMÁTICO
+        try {
+            await pb.collection('users').requestVerification(email);
+        } catch(errMail) {
+            console.warn("No se pudo enviar el correo de verificación. ¿Configuraste el SMTP en PocketBase?", errMail);
+        }
         if (typeof conectarDBLocal === 'function') conectarDBLocal();
 
         // 🛑 APAGAMOS EL RADAR PARA EVITAR EL CHOQUE DE CREDENCIALES (ERROR 403)
@@ -14447,9 +14486,9 @@ window.registrarNuevoNegocio = async function() {
         let datosAdmin = { 
             usuario: "Admin", 
             nombre: "Admin", 
-            pin: "1234", 
+            pin: "12345", 
             sucursal: "Matriz", 
-            tabs: ["v-tab", "c-tab", "i-tab", "cli-tab", "r-tab", "u-tab", "kardex-tab", "audi-tab"], 
+            tabs: ["v-tab", "c-tab", "prov-tab", "k-tab", "i-tab", "cli-tab", "pro-tab", "rec-tab", "r-tab", "u-tab", "kardex-tab", "audi-tab"], 
             permisos: ["inv_ciego", "auditoria"] 
         };
 
@@ -14510,17 +14549,20 @@ window.registrarNuevoNegocio = async function() {
 
         document.getElementById('modalRegistro').style.display = 'none';
         
-        // AUTO-LOGIN AL SISTEMA
-        let selectUser = document.getElementById('login_user');
-        let inputPin = document.getElementById('login_pin');
-        if(selectUser && inputPin) {
-            selectUser.value = "Admin";
-            inputPin.value = "1234";
-            if (typeof intentarLogin === 'function') await intentarLogin();
+        // 📧 ENVIAR CORREO DE VERIFICACIÓN AUTOMÁTICO
+        try {
+            await pb.collection('users').requestVerification(email);
+        } catch(errMail) {
+            console.warn("Aviso de correo:", errMail);
         }
 
-        alert(`✅ ¡Bienvenido a PosProGem, ${negocio}!\n\nTu PIN inicial para Admin es: 1234`);
-        if (typeof verificarSuscripcion === 'function') verificarSuscripcion();
+        // 🛑 CIERRE DE PUERTA ESTRICTO: Deslogueamos al usuario inmediatamente después de armar su base de datos
+        pb.authStore.clear();
+        
+        document.getElementById('modalRegistro').style.display = 'none';
+
+        // Alerta estricta exigiendo verificación
+        alert(`✅ ¡Tu cuenta ha sido creada exitosamente, ${nombrePersonal}!\n\n🔒 Por seguridad, tu acceso está bloqueado temporalmente.\n\nTe hemos enviado un correo a ${email}. Debes abrirlo y hacer clic en el botón de "Verificar" antes de poder entrar a tu Punto de Venta.\n\n(No olvides revisar tu carpeta de SPAM).`);
 
     } catch (error) {
         console.error("Error al registrar:", error);
@@ -14563,7 +14605,7 @@ window.revisarEstadoTerminalSaaS = async function() {
                     if (nombreCajero && nombreCajero !== "undefined" && nombreCajero !== "null" && nombreCajero !== r.id) {
                         nuevosCajeros[nombreCajero] = { 
                             pin: r.pin, 
-                            tabs: r.tabs || ["v-tab", "c-tab", "i-tab", "cli-tab", "r-tab", "u-tab", "kardex-tab", "audi-tab"], 
+                            tabs: r.tabs || ["v-tab", "c-tab", "prov-tab", "k-tab", "i-tab", "cli-tab", "pro-tab", "rec-tab", "r-tab", "u-tab", "kardex-tab", "audi-tab"], 
                             permisos: r.permisos || [] 
                         };
                     }
@@ -14571,7 +14613,7 @@ window.revisarEstadoTerminalSaaS = async function() {
             }
 
             if (Object.keys(nuevosCajeros).length === 0) {
-                nuevosCajeros["Admin"] = { pin: "1234", tabs: ["v-tab", "c-tab", "i-tab", "cli-tab", "r-tab", "u-tab", "kardex-tab", "audi-tab"], permisos: ["inv_ciego", "auditoria"] };
+                nuevosCajeros["Admin"] = { pin: "1234", tabs: ["v-tab", "c-tab", "prov-tab", "k-tab", "i-tab", "cli-tab", "pro-tab", "rec-tab", "r-tab", "u-tab", "kardex-tab", "audi-tab"], permisos: ["inv_ciego", "auditoria"] };
             }
 
             // Exterminio final por si quedó guardado en memoria
@@ -14594,58 +14636,77 @@ window.revisarEstadoTerminalSaaS = async function() {
             });
         }
         // 📦 DESCARGA CONDICIONADA DEL CATÁLOGO BASE
+        // 🔄 RESTAURADOR INTELIGENTE DE INVENTARIO (PARA TERMINALES NUEVAS O TRAS BORRAR CACHÉ)
         setTimeout(async () => {
             let totalLocal = (typeof inv !== 'undefined') ? Object.keys(inv).length : 0;
             
-            // Solo evaluamos si la terminal no tiene productos
             if (totalLocal === 0) {
-                // 1. Revisamos en memoria local
-                let prefLocal = localStorage.getItem('pos_usa_catalogo_base');
-                let debeCargar = prefLocal === 'si';
+                let miNegocioId = pb.authStore.model.negocio_id;
+                console.log("📦 Terminal sin inventario local. Verificando estado en la nube...");
 
-                // 2. Si es una computadora nueva sin memoria local, preguntamos a la nube
-                if (!prefLocal && typeof pb !== 'undefined') {
-                    try {
-                        let conf = await pb.collection('config').getFirstListItem('doc_id="catalogo_base_preferencia"', { requestKey: null });
-                        debeCargar = conf && conf.data && conf.data.activado === true;
-                        localStorage.setItem('pos_usa_catalogo_base', debeCargar ? 'si' : 'no');
-                    } catch(e) {
-                        debeCargar = false;
-                    }
+                // 1. Revisamos en la nube si este negocio eligió usar catálogo base
+                let debeCargarBase = false;
+                try {
+                    let conf = await pb.collection('config').getFirstListItem(`doc_id="catalogo_base_preferencia" && negocio_id="${miNegocioId}"`, { requestKey: null });
+                    debeCargarBase = conf && conf.data && conf.data.activado === true;
+                } catch(e) {
+                    // Si no hay registro en config, revisamos memoria local de respaldo
+                    debeCargarBase = localStorage.getItem('pos_usa_catalogo_base') === 'si';
                 }
 
-                // 3. Descargamos ÚNICAMENTE si el cliente lo pidió expresamente
-                if (debeCargar) {
+                let inventarioFinal = {};
+
+                // 2. Si eligió catálogo base, cargamos la plantilla inicial
+                if (debeCargarBase) {
                     try {
-                        console.log("📦 Negocio con catálogo activo. Descargando base...");
-                        let res = await fetch('./catalogo_base.json');
+                        console.log("📥 Descargando plantilla de catálogo base...");
+                        let res = await fetch('./catalogo_base.json?v=' + Date.now());
                         if (res.ok) {
-                            let cat = await res.json();
-                            let miNegocioId = pb.authStore.model.negocio_id;
-                            
-                            Object.keys(cat).forEach(k => {
-                                cat[k].negocio_id = miNegocioId;
-                                cat[k].can = 0;
-                                cat[k].stock = {};
-                                cat[k].inv_sucursales = {};
+                            inventarioFinal = await res.json();
+                            Object.keys(inventarioFinal).forEach(k => {
+                                inventarioFinal[k].negocio_id = miNegocioId;
+                                inventarioFinal[k].can = 0;
+                                inventarioFinal[k].stock = {};
+                                inventarioFinal[k].inv_sucursales = {};
                             });
-
-                            window.inv = cat;
-                            try { localStorage.setItem("pos_precision_v6", JSON.stringify(window.inv)); } catch(e){}
-                            if (window.dbLocal && dbLocal.inventario) {
-                                await dbLocal.inventario.bulkPut(Object.values(cat)).catch(()=>{});
-                            }
-                            if (typeof renderI === 'function') renderI();
-                            console.log("✅ Catálogo base cargado.");
                         }
-                    } catch(err) {
-                        console.warn("Aviso catálogo base:", err);
+                    } catch(errBase) {
+                        console.warn("Aviso al cargar archivo base:", errBase);
                     }
-                } else {
-                    console.log("ℹ️ Este negocio eligió iniciar sin catálogo base.");
                 }
+
+                // 3. 🚀 RESCATE DE LA NUBE: Descargamos los productos que el cliente ha editado o creado
+                try {
+                    console.log("☁️ Sincronizando productos personalizados desde PocketBase...");
+                    let productosNube = await pb.collection('inventario').getFullList({
+                        filter: `negocio_id="${miNegocioId}"`,
+                        requestKey: null
+                    });
+
+                    // Fusionamos: los productos de la nube sobreescriben la base con sus stocks y costos reales
+                    productosNube.forEach(rec => {
+                        let prodData = rec.data || rec;
+                        let codigo = rec.doc_id || prodData.cod;
+                        if (codigo) {
+                            inventarioFinal[codigo] = prodData;
+                        }
+                    });
+
+                    console.log(`✅ Inventario restaurado: ${Object.keys(inventarioFinal).length} productos listos.`);
+                } catch(errNube) {
+                    console.warn("Aviso al sincronizar productos de la nube:", errNube);
+                }
+
+                // 4. Guardamos todo en el disco duro local de este nuevo navegador
+                window.inv = inventarioFinal;
+                try { localStorage.setItem("pos_precision_v6", JSON.stringify(window.inv)); } catch(e){}
+                if (window.dbLocal && dbLocal.inventario) {
+                    await dbLocal.inventario.bulkPut(Object.values(window.inv)).catch(()=>{});
+                }
+                if (typeof renderI === 'function') renderI();
+                if (typeof renderTablaInventario === 'function') renderTablaInventario();
             }
-        }, 1500);
+        }, 1200);
     } else {
         if(formSaaS) formSaaS.style.display = 'flex';
         if(formPIN) formPIN.style.display = 'none';
@@ -14717,3 +14778,29 @@ window.desvincularTerminal = function() {
         alert("✅ Terminal desvinculada exitosamente.");
     }
 };
+window.prepararCaptcha = function() {
+    let n1 = Math.floor(Math.random() * 9) + 1;
+    let n2 = Math.floor(Math.random() * 9) + 1;
+    window.captchaCorrecto = n1 + n2;
+    let lbl = document.getElementById('lbl_captcha');
+    if (lbl) lbl.innerText = `¿Cuánto es ${n1} + ${n2}?`;
+    let input = document.getElementById('reg_captcha');
+    if (input) input.value = '';
+};
+// ====================================================================
+// 📧 RECUPERACIÓN DE CONTRASEÑA SAAS
+// ====================================================================
+window.recuperarPassword = async function() {
+    let email = prompt("📧 Ingresa el correo electrónico de tu cuenta para recuperar tu contraseña:");
+    
+    if (!email) return;
+    email = email.trim().toLowerCase();
+
+    try {
+        await pb.collection('users').requestPasswordReset(email);
+        alert(`✅ Correo de recuperación enviado a:\n${email}\n\nRevisa tu bandeja de entrada (y la carpeta de SPAM). Sigue el enlace del correo para crear tu nueva contraseña.`);
+    } catch(error) {
+        console.error("Error al recuperar password:", error);
+        alert("❌ No se pudo enviar el correo. Verifica que la dirección esté bien escrita y que tengas conexión a internet.");
+    }
+}; 
