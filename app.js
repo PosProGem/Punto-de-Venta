@@ -1766,59 +1766,58 @@ function obtenerProductoMaestro(cod) {
     return p;
 }
 
+// ====================================================================
+// 🚀 1. ARRANQUE LIGERO (Súper rápido y con memoria protegida)
+// ====================================================================
 window.onload = async () => { 
-    cargarFondosDesdeNube(); 
-    document.querySelectorAll('.modal').forEach(m => document.body.appendChild(m));
-    renderGestSucursales();
-    setInterval(updateClock, 1000); updateClock(); initLoginSelect();
-    document.getElementById('ui_sucursal').value = sucursalActual; document.getElementById('corte_sucursal').value = sucursalActual;
-    actualizarEtiquetasSucursal(); cargarConfigEnUI(); 
-
-    // ⚡ 1. Despertar el inventario desde IndexedDB antes de pintar la tabla
-    if (window.dbLocal && dbLocal.productos) {
-        try {
-            let guardados = await dbLocal.productos.toArray();
-            if (guardados && guardados.length > 0) {
-                // 🛑 SINCRONIZAMOS AMBAS VARIABLES PARA QUE SEAN EL MISMO OBJETO:
-                window.inv = window.inv || {};
-                if (typeof inv !== 'undefined') {
-                    inv = window.inv;
-                }
-
-                guardados.forEach(p => {
-                    let idProd = p.id || p.cod || p.doc_id;
-                    window.inv[idProd] = p;
-                    if (typeof inv !== 'undefined') inv[idProd] = p;
-                });
-
-                // Le asignamos las 9247 claves
-                window.currentInvKeys = Object.keys(window.inv);
-                if (typeof currentInvKeys !== 'undefined') {
-                    currentInvKeys = window.currentInvKeys;
-                }
-
-                console.log(`⚡ Inventario restaurado desde disco duro: ${guardados.length} productos listos en inv y window.inv.`);
-            }
-        } catch (e) {
-            console.warn("⚠️ Error restaurando inventario desde disco local:", e);
-        }
-    }
+    console.log("🚀 Iniciando sistema... Paso 1: Interfaz y Cajeros");
     
+    // 1. Acomodo básico de la pantalla
+    document.querySelectorAll('.modal').forEach(m => document.body.appendChild(m));
+    setInterval(updateClock, 1000); updateClock(); 
+    
+    let hoy = typeof getFechaLocal === 'function' ? getFechaLocal() : new Date().toISOString().split('T')[0];
+    if(document.getElementById('pr_ini')) document.getElementById('pr_ini').value = hoy; 
+    if(document.getElementById('corte_fecha_inicio')) document.getElementById('corte_fecha_inicio').value = hoy; 
+    if(document.getElementById('corte_fecha_fin')) document.getElementById('corte_fecha_fin').value = hoy;
 
-    renderI(); 
-    renderClientes(); 
-    renderProveedores(); 
-    renderPromos(); 
-    renderUsuarios(); 
-    actualizarContadorPausadas(); 
-    actualizarContadorRecepciones();
-    document.getElementById('login_pin').focus();
-    let hoy = getFechaLocal(); 
-    document.getElementById('pr_ini').value = hoy; 
-    document.getElementById('corte_fecha_inicio').value = hoy; 
-    document.getElementById('corte_fecha_fin').value = hoy;
-    renderCorte();
-    if (typeof renderKardex === 'function') window.renderKardex();
+    // 2. Conectar la base de datos local
+    if (typeof conectarDBLocal === 'function') conectarDBLocal();
+    
+    // 3. 🛡️ LEER CAJEROS LOCALES PRIMERO (Para nunca perderlos)
+    let guardados = localStorage.getItem("pos_usuarios_v9") || localStorage.getItem("pos_usuarios_v1");
+    if (guardados) {
+        window.usuariosData = JSON.parse(guardados);
+    } else {
+        // Si está 100% vacío, creamos al Admin por defecto
+        window.usuariosData = { "Admin": { pin: "1234", tabs: ["v-tab", "c-tab", "prov-tab", "k-tab", "i-tab", "cli-tab", "pro-tab", "rec-tab", "r-tab", "u-tab", "kardex-tab", "audi-tab"], permisos: ["inv_ciego", "auditoria"] } };
+    }
+
+    // 4. Bajar cajeros de la nube y combinarlos sin borrar nada
+    if (typeof pb !== 'undefined' && navigator.onLine) {
+        let miNegocioId = localStorage.getItem('pos_negocio_id_saas');
+        try {
+            let res = await pb.collection('usuarios').getFullList({ filter: miNegocioId ? `negocio_id="${miNegocioId}"` : "", requestKey: null });
+            res.forEach(u => { window.usuariosData[u.doc_id || u.id] = u.data || u; });
+            // Guardamos la combinación final en tu equipo
+            try { localStorage.setItem("pos_usuarios_v9", JSON.stringify(window.usuariosData)); } catch(e){}
+        } catch(e) { console.warn("Aviso nube cajeros:", e); }
+    }
+
+    // 5. Dibujar la lista desplegable obligatoriamente
+    let selectLogin = document.getElementById('login_user');
+    if (selectLogin && window.usuariosData) {
+        selectLogin.innerHTML = "";
+        Object.keys(window.usuariosData).forEach(u => {
+            selectLogin.innerHTML += `<option value="${u}">${u}</option>`;
+        });
+    } else if (typeof initLoginSelect === 'function') {
+        initLoginSelect();
+    }
+
+    // 6. Cargar estética y poner el cursor listo
+    if (typeof cargarFondosDesdeNube === 'function') cargarFondosDesdeNube();
+    if (document.getElementById('login_pin')) document.getElementById('login_pin').focus();
 };
 // =========================================================================
 // 🔀 ENRUTADOR PRINCIPAL (AUTO-RESCATE INFALIBLE)
@@ -1982,6 +1981,10 @@ window.intentarLogin = async function() {
         if (screen) {
             screen.style.setProperty('display', 'none', 'important');
             screen.classList.add('oculto');
+        }
+        // 👉 ¡AQUÍ ESTÁ LA MAGIA! Ejecutamos el trabajo pesado
+        if (typeof arrancarTablasEInventario === 'function') {
+            arrancarTablasEInventario();
         }
 
         if (!usuariosData[u]) {
@@ -14804,3 +14807,55 @@ window.recuperarPassword = async function() {
         alert("❌ No se pudo enviar el correo. Verifica que la dirección esté bien escrita y que tengas conexión a internet.");
     }
 }; 
+// ====================================================================
+// 🏋️ 2. ARRANQUE PESADO (Trae los 9,000 productos y enciende radares)
+// ====================================================================
+window.arrancarTablasEInventario = async function() {
+    console.log("☁️ PIN Correcto. Iniciando carga pesada en segundo plano...");
+
+    // 1. Cargar la configuración de UI y sucursales
+    if(typeof renderGestSucursales === 'function') renderGestSucursales();
+    if(document.getElementById('ui_sucursal')) document.getElementById('ui_sucursal').value = window.sucursalActual; 
+    if(document.getElementById('corte_sucursal')) document.getElementById('corte_sucursal').value = window.sucursalActual;
+    if(typeof actualizarEtiquetasSucursal === 'function') actualizarEtiquetasSucursal(); 
+    if(typeof cargarConfigEnUI === 'function') cargarConfigEnUI(); 
+
+    // 2. Despertar el inventario desde IndexedDB
+    if (window.dbLocal && dbLocal.productos) {
+        try {
+            let guardados = await dbLocal.productos.toArray();
+            if (guardados && guardados.length > 0) {
+                window.inv = window.inv || {};
+                if (typeof inv !== 'undefined') inv = window.inv;
+
+                guardados.forEach(p => {
+                    let idProd = p.id || p.cod || p.doc_id;
+                    window.inv[idProd] = p;
+                    if (typeof inv !== 'undefined') inv[idProd] = p;
+                });
+
+                window.currentInvKeys = Object.keys(window.inv);
+                if (typeof currentInvKeys !== 'undefined') currentInvKeys = window.currentInvKeys;
+                console.log(`⚡ Inventario restaurado desde disco: ${guardados.length} productos listos.`);
+            }
+        } catch (e) { console.warn("⚠️ Error restaurando inventario local:", e); }
+    }
+
+    // 3. Pintar todas las tablas
+    if(typeof renderI === 'function') renderI(); 
+    if(typeof renderClientes === 'function') renderClientes(); 
+    if(typeof renderProveedores === 'function') renderProveedores(); 
+    if(typeof renderPromos === 'function') renderPromos(); 
+    if(typeof renderUsuarios === 'function') renderUsuarios(); 
+    if(typeof actualizarContadorPausadas === 'function') actualizarContadorPausadas(); 
+    if(typeof actualizarContadorRecepciones === 'function') actualizarContadorRecepciones();
+    if(typeof renderCorte === 'function') renderCorte();
+    if(typeof renderKardex === 'function') renderKardex();
+
+    // 4. Encender Radares de la Nube (Con retraso de 1 segundo para no trabar la PC)
+    setTimeout(() => {
+        if(typeof sincronizarCambiosRecientes === 'function') window.sincronizarCambiosRecientes();
+        if(typeof iniciarRadar === 'function') window.iniciarRadar();
+        if(typeof iniciarRadarTransferencias === 'function') window.iniciarRadarTransferencias();
+    }, 1000);
+};
