@@ -1952,7 +1952,7 @@ window.intentarLogin = async function() {
         }
 
         // Mostramos arriba a la derecha: "Admin - Abarrotes San Juan"
-        document.getElementById('ui_current_user').innerText = `${u} - ${window.sucursalActual}`; 
+        document.getElementById('ui_current_user').innerText = u;
 
         // 🔄 1. Actualizar el selector/botón azul de la sucursal
         let selectorSucursal = document.getElementById('ui_sucursal');
@@ -2803,7 +2803,8 @@ function abrirEditar(cod) {
     document.getElementById('e_dep').value = p.dep || "General"; 
     document.getElementById('e_nom').value = p.nom; 
     document.getElementById('e_tipo').value = p.tipo || 'pieza'; 
-    document.getElementById('e_cos').value = p.cos || 0; 
+    let cReal = p.cos ?? (p.data && p.data.cos) ?? p.costo ?? p.costo_base ?? p.precio_costo ?? 0;
+    document.getElementById('e_cos').value = cReal;
     document.getElementById('e_iva').value = p.iva || 0; 
     document.getElementById('e_pv').value = p.pv || 0; 
     document.getElementById('e_pm').value = p.pm || 0; 
@@ -2918,6 +2919,15 @@ async function guardarEdicion() {
         stockReal = parseFloat(pO.stock) || parseFloat(pO.existencia) || parseFloat(pO.can) || 0;
     }
 
+    // 🚀 OBTENEMOS EL NEGOCIO ID PARA QUE POCKETBASE NO RECHACE EL GUARDADO
+    let miNegocioId = null;
+    if (typeof pb !== 'undefined' && pb.authStore && pb.authStore.model) {
+        miNegocioId = pb.authStore.model.negocio_id;
+    }
+    if (!miNegocioId && typeof localStorage !== 'undefined') {
+        miNegocioId = localStorage.getItem('pos_negocio_id_saas');
+    }
+
     if (codNuevo !== codViejo) {
         if (inv[codNuevo]) return alert("⚠️ Código en uso.");
         inv[codNuevo] = JSON.parse(JSON.stringify(inv[codViejo])); 
@@ -2947,8 +2957,9 @@ async function guardarEdicion() {
                 if (oldRec) await pb.collection('inventario').delete(oldRec.id, { requestKey: null });
             } catch(e) {}
             try {
-                await pb.collection('inventario').create({ doc_id: String(codNuevo), data: inv[codNuevo] }, { requestKey: null });
-                inv[codNuevo].sync_pendiente = false; // Se guardó con éxito en la nube
+                // 🔥 SE AGREGA EL negocio_id AL CREAR EL NUEVO CÓDIGO
+                await pb.collection('inventario').create({ doc_id: String(codNuevo), data: inv[codNuevo], negocio_id: miNegocioId }, { requestKey: null });
+                inv[codNuevo].sync_pendiente = false; 
                 localStorage.setItem("pos_precision_v6", JSON.stringify(inv)); 
                 if (window.dbLocal && dbLocal.inventario) await dbLocal.inventario.put(inv[codNuevo]).catch(()=>{});
             } catch(e) { console.warn("Queda pendiente en Sincronizador Fantasma:", e); }
@@ -2969,22 +2980,23 @@ async function guardarEdicion() {
         inv[codViejo].updatedAt = Date.now();
         inv[codViejo].sync_pendiente = true; // 🛡️ Escudo Anti-Zombies activado
         
-        // Guardamos en local inmediatamente
-       //localStorage.setItem("pos_precision_v6", JSON.stringify(inv)); 
+        // 🔥 SOLUCIÓN 1: SE DESCOMENTÓ ESTA LÍNEA PARA QUE GUARDE EN LOCAL SÍ O SÍ
+        localStorage.setItem("pos_precision_v6", JSON.stringify(inv)); 
         if (window.dbLocal && dbLocal.inventario) await dbLocal.inventario.put(inv[codViejo]).catch(()=>{});
         
         // ☁️ POCKETBASE: Actualiza el existente
         if (typeof pb !== 'undefined') {
             try {
                 let rec = await pb.collection('inventario').getFirstListItem(`doc_id="${codViejo}"`, { requestKey: null });
-                await pb.collection('inventario').update(rec.id, { data: inv[codViejo] }, { requestKey: null });
+                // 🔥 SOLUCIÓN 2: SE AGREGA negocio_id AL ACTUALIZAR
+                await pb.collection('inventario').update(rec.id, { data: inv[codViejo], negocio_id: miNegocioId }, { requestKey: null });
                 inv[codViejo].sync_pendiente = false;
                 localStorage.setItem("pos_precision_v6", JSON.stringify(inv)); 
                 if (window.dbLocal && dbLocal.inventario) await dbLocal.inventario.put(inv[codViejo]).catch(()=>{});
             } catch(e) {
-                // Si por alguna razón no existía en la nube, lo crea
                 try { 
-                    await pb.collection('inventario').create({ doc_id: String(codViejo), data: inv[codViejo] }, { requestKey: null }); 
+                    // 🔥 SE AGREGA negocio_id POR SI EL PRODUCTO NO EXISTÍA EN LA NUBE
+                    await pb.collection('inventario').create({ doc_id: String(codViejo), data: inv[codViejo], negocio_id: miNegocioId }, { requestKey: null }); 
                     inv[codViejo].sync_pendiente = false;
                     localStorage.setItem("pos_precision_v6", JSON.stringify(inv));
                     if (window.dbLocal && dbLocal.inventario) await dbLocal.inventario.put(inv[codViejo]).catch(()=>{});
@@ -14319,7 +14331,7 @@ window.verificarSuscripcion = function() {
                 <p style="font-size: 1.1em; color: #cbd5e1; line-height: 1.5; margin-bottom: 25px;">
                     Tu prueba de 15 días y los 3 días de cortesía han concluido. Tus datos, inventario y ventas siguen guardados de forma segura. Para continuar operando tu caja, activa tu suscripción mensual.
                 </p>
-                <a href="https://link.mercadopago.com.mx/https://mpago.la/13wn92H" target="_blank" 
+                <a href="https://mpago.la/13wn92H" target="_blank" 
                    style="background: #009ee3; color: white; padding: 14px 28px; font-size: 1.15em; font-weight: bold; text-decoration: none; border-radius: 8px; display: inline-block; box-shadow: 0 4px 10px rgba(0, 158, 227, 0.35);">
                     💳 Activar Suscripción Mensual
                 </a>
@@ -14360,7 +14372,7 @@ window.verificarSuscripcion = function() {
 
         banner.innerHTML = `
             <span>⚠️ Tu prueba gratuita de 15 días ha finalizado. Tienes un periodo de gracia de <b>${diasGracia} día(s)</b> restante(s) antes de que el sistema se pause.</span>
-            <a href="https://link.mercadopago.com.mx/https://mpago.la/13wn92H" target="_blank" 
+            <a href="https://mpago.la/13wn92H" target="_blank" 
                style="background: #854d0e; color: white; padding: 4px 12px; border-radius: 4px; text-decoration: none; font-size: 12px;">
                 Suscribirme ahora
             </a>
@@ -14467,7 +14479,7 @@ window.registrarNuevoNegocio = async function() {
         if (quiereCatalogo) {
             btn.innerText = "Instalando catálogo base... 📦";
             try {
-                let respuesta = await fetch('./catalogo_base.json');
+                let respuesta = await fetch('./catalogo_base.json?v=' + Date.now());
                 if (respuesta.ok) {
                     let catalogoSugerido = await respuesta.json();
                     
