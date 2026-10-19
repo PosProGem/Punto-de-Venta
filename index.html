@@ -123,7 +123,7 @@
             
             <div style="display: flex; flex-direction: column; text-align: left; gap: 4px;">
                 <label style="font-size: 11px; font-weight: bold; color: #334155; text-transform: uppercase;">PIN de Acceso</label>
-                <input type="password" id="login_pin" placeholder="••••" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 16px; text-align: center; letter-spacing: 4px; background: white; box-sizing: border-box;">
+                <input type="password" id="login_pin" onkeydown="if(event.key === 'Enter') intentarLogin()" placeholder="••••" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 16px; text-align: center; letter-spacing: 4px; background: white; box-sizing: border-box;">
             </div>
             
             <button onclick="intentarLogin()" style="width: 100%; background: #007bff; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; font-size: 15px; cursor: pointer; box-shadow: 0 4px 10px rgba(0, 123, 255, 0.3);">
@@ -1382,7 +1382,13 @@
     <div class="modal-content" style="width:400px; border-top-color:var(--danger); text-align:center;">
         <h2 style="margin-top:0; color:var(--danger);">⚠️ PROMOCIÓN TERMINADA</h2>
         <p>El cliente seleccionó: <br><b id="pa_nom" style="font-size:18px;"></b></p>
-        <button id="btn_cerrar_pa" class="btn-final" style="background:var(--danger);" onclick="cerrarModales()">ENTENDIDO (Enter)</button>
+        
+        <button id="btn_cerrar_pa" class="btn-final" style="background:var(--danger);" onclick="
+            cerrarModales(); 
+            let c = this.getAttribute('data-cod'); 
+            let pm = typeof obtenerProductoMaestro === 'function' ? obtenerProductoMaestro(c) : inv[c];
+            setTimeout(() => { procesarEntradaProducto(c, inv[c], pm); }, 150);
+        " onkeydown="if(event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); this.click(); }">ENTENDIDO (Enter)</button>
     </div>
 </div>
 
