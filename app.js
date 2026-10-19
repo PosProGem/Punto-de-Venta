@@ -14371,6 +14371,17 @@ window.verificarSuscripcion = function() {
     // ESTADO 2: PERIODO DE GRACIA (Día 16 al 18 - Permite venta pero avisa)
     // ================================================================
     else if (hoy > fechaVencimiento) {
+        // 🧠 CONTROL DE MOLESTIA: Solo mostramos la barra 3 veces al día
+        let fechaString = hoy.toISOString().split('T')[0];
+        let controlMolestia = JSON.parse(localStorage.getItem('pos_aviso_gracia') || '{"fecha":"","conteo":0}');
+        
+        if (controlMolestia.fecha !== fechaString) {
+            controlMolestia = { fecha: fechaString, conteo: 0 };
+        }
+        
+        // Si ya la cerró 3 veces hoy, no la mostramos más hasta mañana
+        if (controlMolestia.conteo >= 3) return true;
+
         let horasRestantesGracia = Math.max(1, Math.ceil((fechaFinGracia - hoy) / (1000 * 60 * 60)));
         let diasGracia = Math.ceil(horasRestantesGracia / 24);
 
@@ -14393,13 +14404,25 @@ window.verificarSuscripcion = function() {
         banner.style.alignItems = 'center';
         banner.style.gap = '12px';
 
+        // 👉 SE AGREGA LA FUNCIÓN PARA CERRAR Y EL BOTÓN "X"
+        window.cerrarBannerGracia = function() {
+            let b = document.getElementById('banner-gracia-suscripcion');
+            if (b) b.remove();
+            controlMolestia.conteo++;
+            localStorage.setItem('pos_aviso_gracia', JSON.stringify(controlMolestia));
+        };
+
         banner.innerHTML = `
-            <span>⚠️ Tu prueba gratuita de 15 días ha finalizado. Tienes un periodo de gracia de <b>${diasGracia} día(s)</b> restante(s) antes de que el sistema se pause.</span>
-            <a href="https://mpago.la/13wn92H" target="_blank" 
-               style="background: #854d0e; color: white; padding: 4px 12px; border-radius: 4px; text-decoration: none; font-size: 12px;">
-                Suscribirme ahora
-            </a>
+            <div style="flex-grow: 1;">
+                ⚠️ Tu prueba gratuita ha finalizado. Tienes un periodo de gracia de <b>${diasGracia} día(s)</b> antes de que el sistema se pause.
+                <a href="https://mpago.la/13wn92H" target="_blank" 
+                   style="background: #854d0e; color: white; padding: 4px 12px; border-radius: 4px; text-decoration: none; font-size: 12px; margin-left: 10px;">
+                    Suscribirme ahora
+                </a>
+            </div>
+            <button onclick="cerrarBannerGracia()" style="background: transparent; border: none; font-size: 18px; color: #854d0e; cursor: pointer; font-weight: bold; padding: 0 10px;">✕</button>
         `;
+        
         document.body.prepend(banner);
         return true;
     }
