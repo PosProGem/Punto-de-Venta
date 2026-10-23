@@ -123,7 +123,7 @@
             
             <div style="display: flex; flex-direction: column; text-align: left; gap: 4px;">
                 <label style="font-size: 11px; font-weight: bold; color: #334155; text-transform: uppercase;">PIN de Acceso</label>
-                <input type="password" id="login_pin" onkeydown="if(event.key === 'Enter') intentarLogin()" placeholder="••••" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 16px; text-align: center; letter-spacing: 4px; background: white; box-sizing: border-box;">
+               <input type="text" id="login_pin" autocomplete="off" placeholder="••••" onkeydown="if(event.key === 'Enter') intentarLogin()" style="-webkit-text-security: disc; width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 16px; text-align: center; letter-spacing: 4px; background: white; box-sizing: border-box;" autofocus>
             </div>
             
             <button onclick="intentarLogin()" style="width: 100%; background: #007bff; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; font-size: 15px; cursor: pointer; box-shadow: 0 4px 10px rgba(0, 123, 255, 0.3);">
@@ -875,7 +875,7 @@
                         </div>
                         <div style="flex:1">
                             <label style="font-size:11px; font-weight:bold; color:var(--p)">PIN:</label>
-                            <input type="password" id="u_pin" placeholder="****">
+                            <input type="text" id="u_pin" autocomplete="off" style="-webkit-text-security: disc; width: 100%; padding: 8px;">
                         </div>
                     </div>
                     <label style="font-size:11px; font-weight:bold; color:var(--p); margin-bottom:5px; display:block;">PERMISOS - SELECCIONA LOS MÓDULOS PERMITIDOS:</label>
@@ -2204,7 +2204,7 @@
         <input type="email" id="reg_correo" placeholder="tu@correo.com" style="width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
         
         <label style="font-weight: bold; font-size: 0.85em; color: #475569;">Contraseña:</label>
-        <input type="password" id="reg_pass" placeholder="Mínimo 8 caracteres" style="width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
+        <input type="text" id="reg_pass" autocomplete="off" placeholder="Mínimo 8 caracteres" style="-webkit-text-security: disc; width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
         
         <!-- CASILLA CATÁLOGO BASE -->
         <div style="margin-bottom: 15px; text-align: left; background: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0;">

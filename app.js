@@ -1964,14 +1964,14 @@ window.intentarLogin = async function() {
             selectorSucursal.value = window.sucursalActual;
         }
 
-        // 🔄 2. Actualizar la palabra "MATRIZ" en el carrito (VERSIÓN SEGURA)
+        // 🔄 2. Actualizar el carrito sin importar qué nombre tenía antes
         let tituloCarrito = document.querySelector('.v-total-title'); 
         if (tituloCarrito) {
             tituloCarrito.innerText = `TOTAL VENTA (${window.sucursalActual.toUpperCase()})`;
         } else {
-            // 🛡️ Buscamos solo en etiquetas de texto pequeño, NUNCA en 'div' para evitar borrar la pantalla
             Array.from(document.querySelectorAll('span, b, strong, label')).forEach(el => {
-                if (el.children.length === 0 && el.innerText && el.innerText.includes('TOTAL VENTA (MATRIZ)')) {
+                // 🛡️ Al quitar la palabra MATRIZ, atrapa cualquier sucursal anterior
+                if (el.children.length === 0 && el.innerText && el.innerText.includes('TOTAL VENTA (')) {
                     el.innerText = `TOTAL VENTA (${window.sucursalActual.toUpperCase()})`;
                 }
             });
@@ -2335,13 +2335,29 @@ function cambiarSucursal(ns) {
     }
 }
 
-function actualizarEtiquetasSucursal() { 
-    document.querySelectorAll('.lbl-suc-act').forEach(el => el.innerText = sucursalActual.toUpperCase()); 
-    let root = document.documentElement;
-    if (sucursalActual === "Matriz") { root.style.setProperty('--p', '#007bff'); } 
-    else if (sucursalActual === "Sucursal 1") { root.style.setProperty('--p', '#6f42c1');} 
-    else if (sucursalActual === "Sucursal 2") { root.style.setProperty('--p', '#20c997'); }
-}
+window.actualizarEtiquetasSucursal = function() {
+    let suc = typeof sucursalActual !== 'undefined' ? sucursalActual : (window.sucursalActual || "Matriz");
+    
+    let selector = document.getElementById('ui_sucursal');
+    if (selector) {
+        if (selector.tagName === 'SELECT') {
+            selector.value = suc;
+        } else {
+            selector.innerText = `📍 ${suc}`;
+        }
+    }
+
+    let tituloCarrito = document.querySelector('.v-total-title');
+    if (tituloCarrito) {
+        tituloCarrito.innerText = `TOTAL VENTA (${suc.toUpperCase()})`;
+    } else {
+        Array.from(document.querySelectorAll('span, b, strong, label')).forEach(el => {
+            if (el.children.length === 0 && el.innerText && el.innerText.includes('TOTAL VENTA (')) {
+                el.innerText = `TOTAL VENTA (${suc.toUpperCase()})`;
+            }
+        });
+    }
+};
 
 function actualizarSelectsSucursales() {
     if (!listaSucursales || listaSucursales.length === 0) listaSucursales = ["Matriz"]; 
