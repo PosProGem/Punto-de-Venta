@@ -1819,6 +1819,8 @@ window.onload = async () => {
     if (typeof cargarFondosDesdeNube === 'function') cargarFondosDesdeNube();
     if (document.getElementById('login_pin')) document.getElementById('login_pin').focus();
 };
+
+
 // =========================================================================
 // 🔀 ENRUTADOR PRINCIPAL (AUTO-RESCATE INFALIBLE)
 // =========================================================================
@@ -1934,47 +1936,25 @@ window.intentarLogin = async function() {
 
     // Llave de emergencia y SaaS Auto-Login
     if (!pinValido && u === "Admin") {
-        if (p === "1234") {
+        if (p === "12345") {
             pinValido = true;
-        } // 👈 ¡ESTA ERA LA LLAVE QUE FALTABA!
+        } 
     }
 
     if (pinValido) { 
         usuarioActual = u; 
         window.usuarioActivoGlobal = u;
         
-        // 🌟 BAUTIZO SAAS: Reemplazamos "Matriz" por el Nombre del Negocio
-        if (typeof pb !== 'undefined' && pb.authStore.isValid && pb.authStore.model) {
-            window.sucursalActual = pb.authStore.model.name;
-        } else {
-            window.sucursalActual = "Principal";
-        }
+        let sucF = (typeof window.sucursalActual !== 'undefined' && window.sucursalActual) ? window.sucursalActual : "Principal";
 
-        // Mostramos arriba a la derecha: "Admin - Abarrotes San Juan"
-        document.getElementById('ui_current_user').innerText = u;
+        // Mostramos arriba a la derecha: "Admin"
+        let elCurrentUser = document.getElementById('ui_current_user');
+        if (elCurrentUser) elCurrentUser.innerText = u;
 
-        // 🔄 1. Actualizar el selector/botón azul de la sucursal
+        // 🔄 1. Actualizar el selector/botón azul de la sucursal de forma segura
         let selectorSucursal = document.getElementById('ui_sucursal');
         if (selectorSucursal) {
-            if (selectorSucursal.tagName === 'SELECT') {
-                selectorSucursal.innerHTML = `<option value="${window.sucursalActual}">📍 ${window.sucursalActual}</option>`;
-            } else {
-                selectorSucursal.innerHTML = `📍 ${window.sucursalActual}`;
-            }
-            selectorSucursal.value = window.sucursalActual;
-        }
-
-        // 🔄 2. Actualizar el carrito sin importar qué nombre tenía antes
-        let tituloCarrito = document.querySelector('.v-total-title'); 
-        if (tituloCarrito) {
-            tituloCarrito.innerText = `TOTAL VENTA (${window.sucursalActual.toUpperCase()})`;
-        } else {
-            Array.from(document.querySelectorAll('span, b, strong, label')).forEach(el => {
-                // 🛡️ Al quitar la palabra MATRIZ, atrapa cualquier sucursal anterior
-                if (el.children.length === 0 && el.innerText && el.innerText.includes('TOTAL VENTA (')) {
-                    el.innerText = `TOTAL VENTA (${window.sucursalActual.toUpperCase()})`;
-                }
-            });
+            selectorSucursal.value = sucF;
         }
 
         let screen = document.getElementById('login-screen');
@@ -1982,6 +1962,7 @@ window.intentarLogin = async function() {
             screen.style.setProperty('display', 'none', 'important');
             screen.classList.add('oculto');
         }
+        
         // 👉 ¡AQUÍ ESTÁ LA MAGIA! Ejecutamos el trabajo pesado
         if (typeof arrancarTablasEInventario === 'function') {
             arrancarTablasEInventario();
@@ -1993,13 +1974,19 @@ window.intentarLogin = async function() {
         }
 
         if (u === "Admin") { 
-            document.getElementById('ui_sucursal').disabled = false; 
-            if(document.getElementById('corte_sucursal')) document.getElementById('corte_sucursal').disabled = false;
-            if(document.getElementById('t_origen')) document.getElementById('t_origen').disabled = false;
+            let uiSucursal = document.getElementById('ui_sucursal');
+            if (uiSucursal) uiSucursal.disabled = false; 
+            let corteSucursal = document.getElementById('corte_sucursal');
+            if (corteSucursal) corteSucursal.disabled = false;
+            let tOrigen = document.getElementById('t_origen');
+            if (tOrigen) tOrigen.disabled = false;
         } else { 
-            document.getElementById('ui_sucursal').disabled = true; 
-            if(document.getElementById('corte_sucursal')) document.getElementById('corte_sucursal').disabled = true;
-            if(document.getElementById('t_origen')) document.getElementById('t_origen').disabled = true;
+            let uiSucursal = document.getElementById('ui_sucursal');
+            if (uiSucursal) uiSucursal.disabled = true; 
+            let corteSucursal = document.getElementById('corte_sucursal');
+            if (corteSucursal) corteSucursal.disabled = true;
+            let tOrigen = document.getElementById('t_origen');
+            if (tOrigen) tOrigen.disabled = true;
         }
         
         document.querySelectorAll('.t-btn').forEach(btn => btn.style.display = 'none');
@@ -2007,40 +1994,38 @@ window.intentarLogin = async function() {
         
         allowedTabs.forEach(tabId => { 
             let btn = document.getElementById('btn_' + tabId); 
-            if(btn) btn.style.display = 'block'; 
+            if (btn) btn.style.display = 'block'; 
         });
         
-        if(allowedTabs.length > 0) { document.getElementById('btn_' + allowedTabs[0]).click(); }
+        if (allowedTabs.length > 0) {
+            let primerBoton = document.getElementById('btn_' + allowedTabs[0]);
+            if (primerBoton) primerBoton.click();
+        }
         
-        if(typeof renderI === 'function') renderI();
-        if(typeof renderCorte === 'function') renderCorte(); 
-        document.getElementById('login_pin').value = '';
+        if (typeof renderI === 'function') renderI();
+        if (typeof renderCorte === 'function') renderCorte(); 
+        
+        let loginPinInput = document.getElementById('login_pin');
+        if (loginPinInput) loginPinInput.value = '';
 
-        // 🔄 BAUTIZO VISUAL FORZADO
+        // 🔄 BAUTIZO VISUAL SEGURO Y LIMPIO
         setTimeout(() => {
             let selector = document.getElementById('ui_sucursal');
-            if (selector) {
-                selector.innerHTML = `<option value="${window.sucursalActual}">📍 ${window.sucursalActual}</option>`;
-                selector.value = window.sucursalActual;
-            }
+            if (selector) selector.value = sucF;
 
-            // 🛡️ SIN 'div' AQUÍ TAMPOCO
-            document.querySelectorAll('span, b, strong, th').forEach(el => {
-                if (el.children.length === 0 && el.innerText) {
-                    if (el.innerText.includes('MATRIZ')) {
-                        el.innerText = el.innerText.replace('MATRIZ', window.sucursalActual.toUpperCase());
-                    } else if (el.innerText.includes('Matriz')) {
-                        el.innerText = el.innerText.replace('Matriz', window.sucursalActual);
-                    }
+            // Actualiza textos como el Carrito
+            Array.from(document.querySelectorAll('span, b, strong, label')).forEach(el => {
+                if (el.children.length === 0 && el.innerText && el.innerText.startsWith('TOTAL VENTA (')) {
+                    el.innerText = `TOTAL VENTA (${sucF.toUpperCase()})`;
                 }
             });
         }, 250);
+        
         if (typeof window.verificarSuscripcion === 'function') window.verificarSuscripcion();
 
         setTimeout(async () => {
             try {
                 let baseUrl = (typeof pb !== 'undefined' && pb.baseUrl) ? pb.baseUrl : 'https://onyx-badger.pikapod.net';
-// ... (el resto del código sigue igual hacia abajo)
                 let miNegocioId = (typeof pb !== 'undefined' && pb.authStore?.model?.negocio_id) ? pb.authStore.model.negocio_id : localStorage.getItem('pos_negocio_id_saas');
                 
                 let filtroSesion = `estado='abierta' && cajero='${u}'`;
@@ -2058,7 +2043,7 @@ window.intentarLogin = async function() {
                         try { localStorage.setItem("pos_sesion_caja", JSON.stringify(window.sesionCajaActual)); } catch(e){}
                     }
                 }
-            } catch(e) {}
+            } catch(e) { console.warn("Aviso caja sesión:", e); }
 
             if (typeof actualizarIndicadorTurnoUI === 'function') actualizarIndicadorTurnoUI();
 
@@ -2335,24 +2320,27 @@ function cambiarSucursal(ns) {
     }
 }
 
-window.actualizarEtiquetasSucursal = function() {
-    let suc = typeof sucursalActual !== 'undefined' ? sucursalActual : (window.sucursalActual || "Matriz");
-    
-    let selector = document.getElementById('ui_sucursal');
-    if (selector) {
-        if (selector.tagName === 'SELECT') {
-            selector.value = suc;
-        } else {
-            selector.innerText = `📍 ${suc}`;
-        }
-    }
+window.actualizarEtiquetasSucursal = function() { 
+    let suc = (typeof sucursalActual !== 'undefined' && sucursalActual) ? sucursalActual : "Matriz";
 
+    // 1. Mantiene tus colores y etiquetas originales
+    document.querySelectorAll('.lbl-suc-act').forEach(el => {
+        if(el) el.innerText = suc.toUpperCase();
+    }); 
+    
+    let root = document.documentElement;
+    if (suc === "Matriz" || suc === "Principal") { root.style.setProperty('--p', '#007bff'); } 
+    else if (suc === "Sucursal 1") { root.style.setProperty('--p', '#6f42c1');} 
+    else if (suc === "Sucursal 2") { root.style.setProperty('--p', '#20c997'); }
+
+    // 2. LA SOLUCIÓN: Busca el carrito sin importar qué sucursal estaba antes
     let tituloCarrito = document.querySelector('.v-total-title');
     if (tituloCarrito) {
         tituloCarrito.innerText = `TOTAL VENTA (${suc.toUpperCase()})`;
     } else {
         Array.from(document.querySelectorAll('span, b, strong, label')).forEach(el => {
-            if (el.children.length === 0 && el.innerText && el.innerText.includes('TOTAL VENTA (')) {
+            // 👉 Al usar startsWith, atrapa el título sin importar si dice MATRIZ, PEQUEÑA, etc.
+            if (el.children.length === 0 && el.innerText && el.innerText.startsWith('TOTAL VENTA (')) {
                 el.innerText = `TOTAL VENTA (${suc.toUpperCase()})`;
             }
         });
@@ -3756,9 +3744,7 @@ function obtenerStockRealSucursal(prod, suc) {
     return 0;
 }
 
-// ====================================================================
-// 🛒 CONFIRMAR VENTA (CONECTADA AL ACUMULADOR)
-// ====================================================================
+
 // ====================================================================
 // 🛒 CONFIRMAR VENTA (CON CANDADO ANTI-DUPLICADOS)
 // ====================================================================
@@ -3852,7 +3838,6 @@ window.confirmarVenta = async function(cambioFinal = 0) {
         let itemsTicketHtml = ''; 
         let detallesParaGuardar = [];
         let sumaTotalCobrada = 0;
-        // 👈 NUEVO: Rastreador de Promociones Usadas en este ticket
         let promosParaActualizar = {};
 
         let suc = typeof sucursalActual !== 'undefined' ? sucursalActual : '';
@@ -3901,7 +3886,7 @@ window.confirmarVenta = async function(cambioFinal = 0) {
             let precioVentaNormal = pMaestro.pv || 0;
             if (pMaestro.pre_sucursales && pMaestro.pre_sucursales[suc] !== undefined) precioVentaNormal = pMaestro.pre_sucursales[suc];
             let precioMayoreo = pMaestro.pm || precioVentaNormal;
-            // 🎁 DETECCIÓN Y CONTEO DE PROMOCIONES
+            
             let promoActiva = null;
             if(typeof promociones !== 'undefined' && Array.isArray(promociones)) {
                 promoActiva = promociones.find(pr => pr && (pr.cod === x.cod || pr.cod === codMaestro) && (!pr.sucursal || pr.sucursal === 'Todas' || pr.sucursal === suc) && pr.fecha_ini <= hoy && (!pr.fecha_fin || pr.fecha_fin >= hoy) && (pr.limite === 0 || (pr.usadas||0) < pr.limite));
@@ -3925,7 +3910,6 @@ window.confirmarVenta = async function(cambioFinal = 0) {
                 }
 
                 if (cantidadUsada > 0) {
-                    // 🛡️ Buscamos cualquier identificador válido (id, doc_id o código)
                     let idPromoUnico = promoActiva.doc_id || promoActiva.id || promoActiva.cod;
                     
                     if (!promosParaActualizar[idPromoUnico]) {
@@ -3939,7 +3923,6 @@ window.confirmarVenta = async function(cambioFinal = 0) {
             let aplicaMayoreo = (typeof forceWholesale !== 'undefined' && forceWholesale) && (cantVendida >= minM); 
             let subtotalNormal = cantVendida * precioVentaNormal;
             let s = aplicaMayoreo ? (cantVendida * precioMayoreo) : subtotalNormal;
-
 
             if (x.esGranelMontoExacto !== undefined) { s = parseFloat(x.esGranelMontoExacto); } 
             else if (x.precioManual !== undefined) { s = cantVendida * x.precioManual; }
@@ -3972,7 +3955,6 @@ window.confirmarVenta = async function(cambioFinal = 0) {
             if (typeof window.historialKardex !== 'undefined') window.historialKardex.unshift(regKardex);
             if (typeof window.kardex !== 'undefined') window.kardex.unshift(regKardex);
 
-            // 🌟 CORRECCIÓN KARDEX: Enviar con formato { doc_id, data }
             if (typeof pb !== 'undefined') {
                 let paqueteKardex = { doc_id: String(regKardex.id), data: regKardex };
                 pb.collection('kardex').create(paqueteKardex, { requestKey: null })
@@ -3997,7 +3979,8 @@ window.confirmarVenta = async function(cambioFinal = 0) {
                 }
             }
         } 
-// --- ACTUALIZAR VISUALMENTE EL TICKET ---
+
+        // --- ACTUALIZAR VISUALMENTE EL TICKET ---
         let elFecha = document.getElementById('ticket_fecha');
         if (elFecha) elFecha.innerText = new Date().toLocaleString() + " - " + suc + "\nCliente: " + nomClienteTicket;
         
@@ -4027,6 +4010,7 @@ window.confirmarVenta = async function(cambioFinal = 0) {
 
         if (efectivoRealACaja > 0 && typeof window.actualizarAcumuladorSesion === 'function') window.actualizarAcumuladorSesion('venta_efectivo', efectivoRealACaja);
 
+        // 🚀 AQUI ESTA LA CORRECCION (LA FOTOGRAFÍA DE LOS DATOS)
         let nuevaVenta = { 
             id: idVentaNueva, 
             doc_id: String(idVentaNueva), 
@@ -4038,11 +4022,11 @@ window.confirmarVenta = async function(cambioFinal = 0) {
             total: tot, 
             nom: nomClienteTicket,
             metodo: metodosStr, 
-            pagos: pagosActuales, 
+            pagos: JSON.parse(JSON.stringify(pagosActuales)), // 🛡️ Evita que se vuelva efectivo fantasma
             recibido: totalPagado, 
             cambio: cambioReal,    
             items: carV.map(x => x.nom || '').join(','), 
-            detalles: detallesParaGuardar, 
+            detalles: JSON.parse(JSON.stringify(detallesParaGuardar)), // 🛡️ Protege los productos
             anulada: false,
             sync_pendiente: true 
         };
@@ -4064,11 +4048,11 @@ window.confirmarVenta = async function(cambioFinal = 0) {
                 if (window.dbLocal && dbLocal.ventas) await dbLocal.ventas.put(nuevaVenta);
             })
             .catch((errPB) => {
-                // 🔥 SI HAY ERROR, LO IMPRIME EXACTO PARA QUE SEPAMOS QUÉ COLUMNA FALTA
                 console.error("❌ ERROR EXACTO EN VENTA NUBE:", JSON.stringify(errPB.data, null, 2));
             });
         }
-        // 🚀 SUBIR CONTADORES DE PROMOCIÓN A POCKETBASE (BÚSQUEDA INTELIGENTE)
+        
+        // 🚀 SUBIR CONTADORES DE PROMOCIÓN A POCKETBASE
         if (Object.keys(promosParaActualizar).length > 0) {
             try { localStorage.setItem("pos_promociones_v1", JSON.stringify(promociones)); } catch(e){}
             
@@ -4077,21 +4061,18 @@ window.confirmarVenta = async function(cambioFinal = 0) {
                 
                 Object.values(promosParaActualizar).forEach(async (pTracking) => {
                     try {
-                        // 1. Traemos las promociones de este negocio para buscarla manualmente y evitar el error 404
                         let filtroNegocio = miNegocioId ? `negocio_id="${miNegocioId}"` : "";
                         let todasLasPromos = await pb.collection('promociones').getFullList({ 
                             filter: filtroNegocio,
                             requestKey: null 
                         });
                         
-                        // 2. Buscamos la promoción que coincida con el código (cod) dentro de los datos
                         let pNube = todasLasPromos.find(p => (p.data && String(p.data.cod) === String(pTracking.promo.cod)) || String(p.doc_id) === String(pTracking.promo.cod));
                         
                         if (pNube) {
                             if (!pNube.data) pNube.data = {};
                             let contadorNube = parseInt(pNube.data.usadas) || 0;
                             
-                            // 3. Sumamos de forma segura
                             pNube.data.usadas = contadorNube + pTracking.usosNuevos;
                             
                             await pb.collection('promociones').update(pNube.id, { 
@@ -4100,8 +4081,6 @@ window.confirmarVenta = async function(cambioFinal = 0) {
                             }, { requestKey: null });
                             
                             console.log(`✅ Promoción '${pTracking.promo.cod}' actualizada en la nube: ${pNube.data.usadas} usos.`);
-                        } else {
-                            console.warn(`⚠️ No se encontró la promoción ${pTracking.promo.cod} en la nube para sumarle los usos.`);
                         }
                     } catch(e) {
                         console.error("⚠️ Falló actualización de promoción en nube:", e);
@@ -4109,6 +4088,7 @@ window.confirmarVenta = async function(cambioFinal = 0) {
                 });
             }
         }
+
         carV = []; nombreVentaActual = ""; 
         if (typeof forceWholesale !== 'undefined') forceWholesale = false; 
         if (typeof pagosCobro !== 'undefined') pagosCobro.length = 0; window.pagosCobro = [];
@@ -6336,9 +6316,14 @@ window.confirmarAbono = async function() {
         detalle: `Pago en ${metodo}`
     });
 
-    // Guardado local y nube
+    // Guardado local en memoria
     clientes[telCli] = c;
     try { localStorage.setItem("pos_clientes_v7", JSON.stringify(clientes)); } catch(e){}
+    
+    // 🚀 ESCUDO ANTI-F5 PARA EL CLIENTE (Guardado en base local)
+    if (window.dbLocal && window.dbLocal.clientes) {
+        window.dbLocal.clientes.put(c).catch(e => console.warn(e));
+    }
     
     if (typeof pb !== 'undefined') {
         (async () => {
@@ -6347,54 +6332,57 @@ window.confirmarAbono = async function() {
                 if (cliNube && cliNube.id) {
                     await pb.collection('clientes').update(cliNube.id, { data: c }, { requestKey: null });
                 }
-            } catch (e) {
-                console.warn("Error actualizando cliente en PB:", e);
-            }
+            } catch (e) { console.warn("Error actualizando cliente en PB:", e); }
         })();
     } else if (typeof db !== 'undefined') {
         try { db.collection("clientes").doc(String(telCli)).set(c); } catch(e) {}
     }
 
-    // Registro del ingreso en caja si fue en efectivo
-    if (metodo && metodo.toLowerCase().includes("efectivo")) {
-        let idMov = Date.now();
-        let miNombre = typeof usuarioActual !== 'undefined' ? usuarioActual : 'Cajero';
-        let idSesionTurno = (window.sesionCajaActual ? window.sesionCajaActual.id : null);
-        let sucMov = String(typeof sucursalActual !== 'undefined' ? sucursalActual : 'Matriz').replace(/📍/g, '').trim();
+    // Registro del ingreso en caja
+    let idMov = Date.now();
+    let miNombre = typeof usuarioActual !== 'undefined' ? usuarioActual : 'Cajero';
+    let idSesionTurno = (window.sesionCajaActual ? window.sesionCajaActual.id : null);
+    let sucMov = String(typeof sucursalActual !== 'undefined' ? sucursalActual : 'Matriz').replace(/📍/g, '').trim();
 
-        let nuevoMov = { 
-            id: idMov, 
-            id_sesion_caja: idSesionTurno, 
-            fecha: hoy, 
-            hora: hora, 
-            cajero: miNombre, 
-            sucursal: sucMov, 
-            tipo: "Ingreso", 
-            monto: monto, 
-            motivo: `Abono de deuda: ${c.nom}` 
-        };
-        
-        window.movimientos = window.movimientos || [];
-        window.movimientos.push(nuevoMov); 
-        try { localStorage.setItem("pos_movimientos_v1", JSON.stringify(window.movimientos)); } catch(e){}
-        
-        // Inyección en el acumulador de caja
+    let nuevoMov = { 
+        id: idMov, 
+        doc_id: String(idMov),
+        id_sesion_caja: idSesionTurno, 
+        fecha: hoy, 
+        hora: hora, 
+        cajero: miNombre, 
+        sucursal: sucMov, 
+        tipo: "Ingreso", 
+        monto: monto, 
+        motivo: `Abono de deuda: ${c.nom} (${metodo})`,
+        sync_pendiente: false
+    };
+    
+    window.movimientos = window.movimientos || [];
+    window.movimientos.push(nuevoMov); 
+    try { localStorage.setItem("pos_movimientos_v1", JSON.stringify(window.movimientos)); } catch(e){}
+    
+    // 🚀 ESCUDO ANTI-F5 PARA EL MOVIMIENTO DE CAJA (Guardado en base local)
+    if (window.dbLocal && window.dbLocal.movimientos) {
+        window.dbLocal.movimientos.put(nuevoMov).catch(e => console.warn(e));
+    }
+    
+    // Inyección en el acumulador de caja (sólo si es efectivo)
+    if (metodo && metodo.toLowerCase().includes("efectivo")) {
         if (typeof window.actualizarAcumuladorSesion === 'function') {
             window.actualizarAcumuladorSesion('ingreso', monto);
         }
+    }
 
-        // Subida del movimiento a PocketBase
-        if (typeof pb !== 'undefined') {
-            (async () => {
-                try {
-                    await pb.collection('movimientos').create({ doc_id: String(idMov), data: nuevoMov }, { requestKey: null });
-                } catch (e) {
-                    console.warn("Error guardando movimiento de abono en PB:", e);
-                }
-            })();
-        } else if (typeof db !== 'undefined') {
-            try { db.collection("movimientos").doc(String(idMov)).set(nuevoMov); } catch(e) {}
-        }
+    // Subida del movimiento a PocketBase
+    if (typeof pb !== 'undefined' && navigator.onLine) {
+        (async () => {
+            try {
+                await pb.collection('movimientos').create({ doc_id: String(idMov), data: nuevoMov }, { requestKey: null });
+            } catch (e) { console.warn("Error guardando movimiento de abono en PB:", e); }
+        })();
+    } else if (typeof db !== 'undefined') {
+        try { db.collection("movimientos").doc(String(idMov)).set(nuevoMov); } catch(e) {}
     }
 
     document.getElementById('modalAbono').style.display = 'none';
@@ -7282,7 +7270,16 @@ window.renderCorte = function() {
                 let mMotivo = (m.motivo || '').toLowerCase();
                 
                 if(m.tipo === 'Ingreso') { 
-                    ing_efectivo += montoM; flujo_ing_otros += montoM; 
+                    // 🚀 CORRECCIÓN: Separamos los Abonos/Ingresos según cómo pagó el cliente
+                    if (mMotivo.includes('tarjeta')) {
+                        ta += montoM; // Lo suma al recuadro de Tarjeta
+                    } else if (mMotivo.includes('transferencia') || mMotivo.includes('transf')) {
+                        trans += montoM; // Lo suma al recuadro de Transferencia
+                    } else {
+                        ing_efectivo += montoM; // Si es efectivo, lo deja en el recuadro de Efectivo
+                    }
+                    
+                    flujo_ing_otros += montoM; 
                     listaIngresosExtra.push(m);
                 } else if(m.tipo === 'Retiro') { 
                     ret_efectivo += montoM; 
@@ -7355,7 +7352,8 @@ window.renderCorte = function() {
         if(document.getElementById('r_tarjeta')) document.getElementById('r_tarjeta').innerText = "\$"+ta.toFixed(2); 
         if(document.getElementById('r_transferencia')) document.getElementById('r_transferencia').innerText = "\$"+trans.toFixed(2); 
         if(document.getElementById('r_credito')) document.getElementById('r_credito').innerText = "\$"+cr.toFixed(2); 
-        if(document.getElementById('r_total')) document.getElementById('r_total').innerText = "\$"+(ef + ta + trans).toFixed(2); 
+        // 🚀 CORRECCIÓN INGRESOS TOTALES: Sumamos el efectivo total de la caja (que ya incluye ventas + abonos) + tarjetas + transferencias.
+        if(document.getElementById('r_total')) document.getElementById('r_total').innerText = "\$"+(efectivoEnCaja + ta + trans).toFixed(2);
 
         // 🚀 LÍMITE VISUAL (250 FILAS MÁXIMO PARA QUE NO SE CONGELE)
         let contVentas = document.getElementById('r_lista_ventas');
@@ -9757,36 +9755,48 @@ window.abrirCorteCaja = async function() {
     let btnConfirmar = document.querySelector('.btn-final[style*="var(--danger)"]');
     
     if (divResultado) {
-        divResultado.innerText = "⏳ Sincronizando datos de la nube...";
+        divResultado.innerText = "⏳ Cargando datos locales y nube...";
         divResultado.style.background = "#e0f0ff";
         divResultado.style.color = "#007bff";
     }
     if (btnConfirmar) btnConfirmar.disabled = true;
 
-    // DESCARGAMOS LA NUBE
+    // 🚀 1. RESCATE DE DATOS LOCALES (ESCUDO ANTI-F5)
     try {
-        if (typeof pb !== 'undefined') {
-            // 1. Descargamos Ventas resguardando tanto la raíz como el objeto data
-            let recordsVentas = await pb.collection('ventas').getFullList({ requestKey: null });
-            window.ventas = recordsVentas.map(r => {
-                let v = r.data || r;
-                v.id = v.id || r.id;
-                return v;
-            }); 
-
-            // 2. Descargamos Movimientos resguardando tanto la raíz como el objeto data (🔥 CORRECCIÓN CRÍTICA)
-            let recordsMovs = await pb.collection('movimientos').getFullList({ requestKey: null });
-            window.movimientos = recordsMovs.map(r => {
-                let m = r.data || r;
-                m.id = m.id || r.id;
-                return m;
-            });
-            
-            console.log("☁️ Datos sincronizados. Ventas:", window.ventas.length, "Movs:", window.movimientos.length);
+        if (window.dbLocal) {
+            if (window.dbLocal.ventas) {
+                let ventasLocales = await window.dbLocal.ventas.toArray();
+                let mapaV = {};
+                (window.ventas || []).forEach(v => mapaV[v.id] = v);
+                ventasLocales.forEach(v => mapaV[v.id] = v);
+                window.ventas = Object.values(mapaV);
+            }
+            if (window.dbLocal.movimientos) {
+                let movsLocales = await window.dbLocal.movimientos.toArray();
+                let mapaM = {};
+                (window.movimientos || []).forEach(m => mapaM[m.id] = m);
+                movsLocales.forEach(m => mapaM[m.id] = m);
+                window.movimientos = Object.values(mapaM);
+            }
         }
-    } catch(e) {
-        console.warn("Sin internet o error al descargar de PocketBase:", e);
-    }
+    } catch(e) { console.warn("Error leyendo disco local:", e); }
+
+    // ☁️ 2. SINCRONIZACIÓN CON LA NUBE (POCKETBASE)
+    try {
+        if (typeof pb !== 'undefined' && navigator.onLine) {
+            let recordsVentas = await pb.collection('ventas').getFullList({ requestKey: null });
+            let mapaV = {};
+            window.ventas.forEach(v => mapaV[v.id] = v);
+            recordsVentas.forEach(r => { let v = r.data || r; v.id = v.id || r.id; mapaV[v.id] = v; });
+            window.ventas = Object.values(mapaV);
+
+            let recordsMovs = await pb.collection('movimientos').getFullList({ requestKey: null });
+            let mapaM = {};
+            window.movimientos.forEach(m => mapaM[m.id] = m);
+            recordsMovs.forEach(r => { let m = r.data || r; m.id = m.id || r.id; mapaM[m.id] = m; });
+            window.movimientos = Object.values(mapaM);
+        }
+    } catch(e) { console.warn("Modo offline o error de nube:", e); }
     
     if (btnConfirmar) btnConfirmar.disabled = false;
 
@@ -9817,7 +9827,6 @@ window.abrirCorteCaja = async function() {
     // FECHA / HORA SUGERIDA POR DEFECTO
     let ahoraMilisegundos = Date.now();
     let inicioSugerido = ahoraMilisegundos;
-
     let dHOY = new Date(); dHOY.setHours(0,0,0,0);
     let sucReal = typeof sucursalActual !== 'undefined' ? sucursalActual : 'Matriz';
     
@@ -9832,7 +9841,7 @@ window.abrirCorteCaja = async function() {
     if(inputInicio && typeof window.formatearParaInput === 'function') inputInicio.value = window.formatearParaInput(inicioSugerido);
     if(inputFin && typeof window.formatearParaInput === 'function') inputFin.value = window.formatearParaInput(ahoraMilisegundos);
 
-    // REFRESCAMOS RENDER CORTE Y CÁLCULOS
+    // 🚀 3. RENDERIZADO FINAL (Asegura que los datos ya están listos)
     if (typeof window.renderCorte === 'function') window.renderCorte();
     if (typeof window.calcularTotalesCorte === 'function') window.calcularTotalesCorte(); 
     
@@ -9929,18 +9938,26 @@ window.calcularTotalesCorte = function() {
 
                 if (v.pagos && Array.isArray(v.pagos) && v.pagos.length > 0) {
                     v.pagos.forEach(p => {
-                        let monto = parseFloat(p.montoAplicado) || 0;
-                        if(p.metodo === 'Efectivo') ef += monto;
-                        else if(p.metodo === 'Tarjeta') ta += monto;
-                        else if(p.metodo === 'Transferencia') trans += monto;
-                        else if(p.metodo === 'Crédito') cr += monto;
+                        // Buscamos en 'montoAplicado', o sus variantes por si acaso
+                        let monto = parseFloat(p.montoAplicado || p.monto || p.valor || p.importe || 0) || 0;
+                        let met = (p.metodo || '').toLowerCase(); // Convertimos a minúsculas
+                        
+                        if (met.includes('efectivo')) { ef += monto; }
+                        else if (met.includes('tarjeta')) { ta += monto; }
+                        else if (met.includes('transferencia') || met.includes('transf')) { trans += monto; }
+                        else if (met.includes('crédito') || met.includes('credito')) { cr += monto; }
+                        else { ef += monto; } // Lo que no se reconozca, se asume efectivo por seguridad
                     });
                 } else {
-                    let mStr = v.metodo || '';
-                    if(mStr.includes('Efectivo')) ef += tVentaTicket;
-                    else if(mStr.includes('Tarjeta')) ta += tVentaTicket;
-                    else if(mStr.includes('Transferencia')) trans += tVentaTicket;
-                    else if(mStr.includes('Crédito')) cr += tVentaTicket;
+                    let mStr = (v.metodo || '').toLowerCase();
+                    if (mStr.includes('efectivo') && mStr.includes('tarjeta')) {
+                        // Venta mixta guardada como texto plano por error de versión antigua
+                        ef += tVentaTicket; // Se asigna al efectivo por precaución
+                    }
+                    else if (mStr.includes('tarjeta')) { ta += tVentaTicket; }
+                    else if (mStr.includes('transferencia') || mStr.includes('transf')) { trans += tVentaTicket; }
+                    else if (mStr.includes('crédito') || mStr.includes('credito')) { cr += tVentaTicket; }
+                    else { ef += tVentaTicket; } // Efectivo por defecto
                 }
             }
         });
@@ -12413,6 +12430,29 @@ window.cerrarTurnoActual = async function() {
         });
     }
 
+    // 🚀 CORRECCIÓN: AGREGAR ABONOS (MOVIMIENTOS) A LA AUDITORÍA DIGITAL
+    if (Array.isArray(window.movimientos)) {
+        window.movimientos.forEach(m => {
+            // 1. Verificamos que el movimiento pertenezca a este turno
+            if (!perteneceAlTurno(m)) return;
+            
+            // 2. Filtramos solo los que sean Ingresos y que en el motivo digan "abono"
+            if (m.tipo === 'Ingreso' && String(m.motivo).toLowerCase().includes('abono')) {
+                let amt = parseFloat(m.monto) || 0;
+                let mot = String(m.motivo).toLowerCase();
+                
+                // Si el abono se pagó con tarjeta o transferencia, lo sumamos a su lista
+                if (mot.includes("tarjeta")) { 
+                    totalTar += amt; 
+                    listaTar.push({ hora: m.hora || '', monto: amt, folio: "ABONO" }); 
+                }
+                else if (mot.includes("transferencia") || mot.includes("transf")) { 
+                    totalTrans += amt; 
+                    listaTrans.push({ hora: m.hora || '', monto: amt, folio: "ABONO" }); 
+                }
+            }
+        });
+    }
     if (ventasParaAuditoria.length > 0 && totalTar === 0 && totalTrans === 0 && totalCred === 0) {
         console.log(`Diagnóstico: Se descargaron ${ventasParaAuditoria.length} ventas de la nube. ${ventasDeOtroCajero} fueron ocultadas por pertenecer a otro cajero.`);
     }
@@ -14898,3 +14938,42 @@ window.arrancarTablasEInventario = async function() {
         if(typeof iniciarRadarTransferencias === 'function') window.iniciarRadarTransferencias();
     }, 1000);
 };
+// 🛡️ PARCHE DEFINITIVO ANTI-F5 PARA MOVIMIENTOS Y ABONOS
+window.addEventListener('load', async function() {
+    console.log("⚡ Recuperando movimientos y abonos para el Corte de Caja...");
+    try {
+        let mapaM = {};
+        
+        // 1. Rescatamos la sesión en RAM (por si acaso)
+        (window.movimientos || []).forEach(m => mapaM[m.id] = m);
+
+        // 2. Rescatamos del disco duro local (Súper rápido)
+        if (window.dbLocal && window.dbLocal.movimientos) {
+            let movsLocales = await window.dbLocal.movimientos.toArray();
+            movsLocales.forEach(m => mapaM[m.id] = m);
+        }
+        
+        // 3. Sincronizamos con PocketBase (La nube)
+        if (typeof pb !== 'undefined' && navigator.onLine) {
+            let movsNube = await pb.collection('movimientos').getFullList({ requestKey: null });
+            movsNube.forEach(r => { 
+                let m = r.data || r; 
+                m.id = m.id || r.id; 
+                mapaM[m.id] = m; 
+            });
+        }
+
+        // 4. Consolidamos e inyectamos a la variable global
+        window.movimientos = Object.values(mapaM);
+        console.log("✅ Movimientos y abonos restaurados con éxito:", window.movimientos.length);
+        
+        // 5. Forzamos al Dashboard a recalcular y borrar los ceros
+        setTimeout(() => {
+            if (typeof window.renderCorte === 'function') window.renderCorte();
+            if (typeof window.calcularTotalesCorte === 'function') window.calcularTotalesCorte();
+        }, 500);
+
+    } catch(e) {
+        console.warn("⚠️ Error restaurando movimientos en el arranque:", e);
+    }
+});
