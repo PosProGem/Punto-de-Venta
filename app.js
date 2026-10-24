@@ -8648,8 +8648,33 @@ window.addEventListener('beforeunload', () => {
 function focoCobro(e, nextId) {
     if (e.key === 'Enter') {
         e.preventDefault(); e.stopPropagation(); 
-        if (nextId === 'add') window.agregarPagoVenta(); 
-        else { let n = (e.target.id === 'm_metodo' && e.target.value === 'Crédito') ? 'm_cliente_select' : nextId; let el = document.getElementById(n); if (el) { el.focus(); if (el.select) el.select(); } }
+        
+        let selectMetodo = document.getElementById('m_metodo');
+        let metodo = selectMetodo ? selectMetodo.value : '';
+
+        // Si presionas Enter desde el monto
+        if (nextId === 'add') {
+            // 💳 Si es Tarjeta, interceptamos el salto y enfocamos los botones
+            if (metodo === 'Tarjeta') {
+                let divBotones = document.getElementById('div_botones_terminal');
+                if (divBotones && divBotones.style.display !== 'none') {
+                    // Busca el primer botón que no esté oculto
+                    let primerBotonVisible = Array.from(divBotones.querySelectorAll('button')).find(b => b.style.display !== 'none');
+                    if (primerBotonVisible) {
+                        primerBotonVisible.focus();
+                        return; // 🛑 Detenemos aquí, ya no cobra directo
+                    }
+                }
+            }
+            
+            // Si no es tarjeta, cobra de forma normal
+            if(typeof window.agregarPagoVenta === 'function') window.agregarPagoVenta(); 
+        } 
+        else { 
+            let n = (e.target.id === 'm_metodo' && metodo === 'Crédito') ? 'm_cliente_select' : nextId; 
+            let el = document.getElementById(n); 
+            if (el) { el.focus(); if (el.select) el.select(); } 
+        }
     }
 }
 function focoC(e, nextId, prevId) {
@@ -14993,114 +15018,158 @@ window.addEventListener('load', async function() {
         console.warn("⚠️ Error restaurando movimientos en el arranque:", e);
     }
 });
-// Variable global para controlar la cámara activa y el input destino
+// =======================================================
+// 📷 SISTEMA INTELIGENTE DE CÁMARA (CLIC LARGO / DOBLE TOQUE)
+// =======================================================
 let html5QrcodeScannerGlobal = null;
 let inputDestinoEscaneo = null;
 let timerClicLargo = null;
+let posInicioX = 0;
+let posInicioY = 0;
+let ultimoToque = 0;
 
-// 🧠 1. DETECTAR CLIC LARGO EN TODOS LOS INPUTS DE ESCANEO
-function inicializarEscaneoClicLargo() {
-    // Buscamos inputs que tengan que ver con escaneo, códigos o búsquedas
-    const selectores = 'input[placeholder*="Escanear"], input[placeholder*="escanear"], input[placeholder*="Código"], input[placeholder*="codigo"], input[id*="buscar"], input[id*="scan"]';
-    
-    document.addEventListener('pointerdown', function(e) {
-        if (!e.target.matches(selectores)) return;
-        
-        const input = e.target;
-        
-        // Iniciamos un temporizador de 850ms (para evitar que un toque rápido o scroll lo active)
-        timerClicLargo = setTimeout(() => {
-            // Vibra sutilmente el celular para avisar que se activó (si el dispositivo lo soporta)
-            if (navigator.vibrate) navigator.vibrate(60);
-            
+function inicializarEscaneoTactil() {
+    // Detecta cualquier input de escaneo, códigos o búsqueda
+    const selectores = 'input[placeholder*="Escanear"], input[placeholder*="escanear"], input[placeholder*="Código"], input[placeholder*="codigo"], input[id*="buscar_inv"], input[id*="scan"]';
+
+    // 1. INICIO DEL TOQUE (Touch o Mouse)
+    document.addEventListener('touchstart', function(e) {
+        let input = e.target.closest(selectores);
+        if (!input) return;
+
+        let touch = e.touches[0];
+        posInicioX = touch.clientX;
+        posInicioY = touch.clientY;
+
+        // --- DETECCIÓN DE DOBLE TOQUE RÁPIDO (< 300ms) ---
+        let ahora = Date.now();
+        if (ahora - ultimoToque < 300) {
+            cancelarTimer();
+            e.preventDefault(); // Evita abrir teclado
             abrirCamaraGlobal(input);
-        }, 850);
+            return;
+        }
+        ultimoToque = ahora;
+
+        // --- DETECCIÓN DE CLIC LARGO (700ms) ---
+        timerClicLargo = setTimeout(() => {
+            if (navigator.vibrate) navigator.vibrate(60); // Vibración de confirmación
+            abrirCamaraGlobal(input);
+            timerClicLargo = null;
+        }, 700);
+    }, { passive: false });
+
+    // 2. MOVIMIENTO DEL DEDO (Tolerancia a micro-temblores)
+    document.addEventListener('touchmove', function(e) {
+        if (!timerClicLargo) return;
+        let touch = e.touches[0];
+        let diffX = Math.abs(touch.clientX - posInicioX);
+        let diffY = Math.abs(touch.clientY - posInicioY);
+
+        // Si el usuario realmente arrastra la pantalla más de 15px, se cancela para permitir scroll
+        if (diffX > 15 || diffY > 15) {
+            cancelarTimer();
+        }
     });
 
-    // Si el usuario levanta el dedo, mueve el cursor o cancela, apagamos el temporizador
-    document.addEventListener('pointerup', cancelarTemporizador);
-    document.addEventListener('pointermove', cancelarTemporizador);
-    document.addEventListener('pointercancel', cancelarTemporizador);
+    // 3. LEVANTAR EL DEDO O CANCELAR
+    document.addEventListener('touchend', cancelarTimer);
+    document.addEventListener('touchcancel', cancelarTimer);
+
+    // 4. EVITAR EL MENÚ "PEGAR/COPIAR" DEL CELULAR AL MANTENER PRESIONADO
+    document.addEventListener('contextmenu', function(e) {
+        if (e.target.closest(selectores)) {
+            e.preventDefault();
+        }
+    });
 }
 
-function cancelarTemporizador() {
+function cancelarTimer() {
     if (timerClicLargo) {
         clearTimeout(timerClicLargo);
         timerClicLargo = null;
     }
 }
 
-// 📷 2. ABRIR CÁMARA Y LEER CÓDIGO
+// 📷 ABRIR MODAL Y TRANSMITIR VIDEO
 function abrirCamaraGlobal(input) {
     inputDestinoEscaneo = input;
     const modal = document.getElementById('modal_camara_global');
-    if (!modal) return;
+    if (!modal) {
+        alert("Falta el modal 'modal_camara_global' en tu index.html");
+        return;
+    }
 
-    modal.style.display = 'block';
+    modal.style.display = 'flex';
 
-    // Inicializamos la librería Html5Qrcode
-    if (typeof Html5Qrcode !== 'undefined') {
+    if (typeof Html5Qrcode === 'undefined') {
+        alert("⚠️ No se cargó la librería de escáner. Verifica la etiqueta script de Html5Qrcode en tu index.html.");
+        cerrarCamaraGlobal();
+        return;
+    }
+
+    try {
         html5QrcodeScannerGlobal = new Html5Qrcode("lector_camara_global");
         
         const config = { 
             fps: 15, 
-            qrbox: { width: 250, height: 150 }, // Caja ideal para códigos de barra horizontales
-            aspectRatio: 1.333333 
+            qrbox: { width: 250, height: 160 },
+            aspectRatio: 1.0 
         };
 
-        // Intentamos encender la cámara trasera ('environment')
         html5QrcodeScannerGlobal.start(
             { facingMode: "environment" }, 
             config, 
             (decodedText) => {
-                // ÉXITO: Tenemos el código
-                if (navigator.vibrate) navigator.vibrate([40, 40]); // Doble vibración de confirmación
+                // Éxito: Código detectado
+                if (navigator.vibrate) navigator.vibrate([50, 50]);
                 
-                // Escribir el código en el input correcto
-                inputDestinoEscaneo.value = decodedText;
-                
-                // 🚀 Truco crucial: Forzar al sistema a procesar el código como si hubieran dado Enter o escrito
-                inputDestinoEscaneo.dispatchEvent(new Event('input', { bubbles: true }));
-                inputDestinoEscaneo.dispatchEvent(new Event('change', { bubbles: true }));
-                
-                // Simular tecla ENTER por si tu código busca con un EventListener de teclado
-                const enterEvent = new KeyboardEvent('keyup', { bubbles: true, cancelable: true, key: 'Enter', keyCode: 13 });
-                inputDestinoEscaneo.dispatchEvent(enterEvent);
+                if (inputDestinoEscaneo) {
+                    inputDestinoEscaneo.value = decodedText;
+                    
+                    // Disparamos eventos para que el sistema procese el código en automático
+                    inputDestinoEscaneo.dispatchEvent(new Event('input', { bubbles: true }));
+                    inputDestinoEscaneo.dispatchEvent(new Event('change', { bubbles: true }));
+
+                    // Simular tecla ENTER
+                    const enterEv = new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true });
+                    inputDestinoEscaneo.dispatchEvent(enterEv);
+                }
 
                 cerrarCamaraGlobal();
             },
-            (errorMessage) => {
-                // Ignorar fallas de escaneo continuo en frames vacíos para no saturar la consola
+            (error) => {
+                // Cuadros vacíos ignorados
             }
         ).catch(err => {
-            alert("No se pudo iniciar la cámara: " + err);
+            alert("No se pudo iniciar la cámara: Asegúrate de otorgar permisos en tu navegador.");
             cerrarCamaraGlobal();
         });
-    } else {
-        alert("La librería del lector de cámara (Html5Qrcode) no está disponible.");
+    } catch(err) {
+        console.error(err);
         cerrarCamaraGlobal();
     }
 }
 
-// 🚫 3. APAGAR CÁMARA Y CERRAR
+// 🚫 APAGAR CÁMARA
 function cerrarCamaraGlobal() {
     const modal = document.getElementById('modal_camara_global');
     if (modal) modal.style.display = 'none';
 
     if (html5QrcodeScannerGlobal) {
         html5QrcodeScannerGlobal.stop().then(() => {
+            html5QrcodeScannerGlobal.clear();
             html5QrcodeScannerGlobal = null;
-        }).catch(err => {
-            console.warn("Falla al detener cámara:", err);
+        }).catch(() => {
             html5QrcodeScannerGlobal = null;
         });
     }
     inputDestinoEscaneo = null;
 }
 
-// Inicializar el sistema en cuanto cargue la página
-document.addEventListener('DOMContentLoaded', inicializarEscaneoClicLargo);
-// Por si las moscas, lo ejecutamos también de inmediato
-if (document.readyState === "complete" || document.readyState === "interactive") {
-    inicializarEscaneoClicLargo();
+// Iniciar al cargar
+if (document.readyState === "loading") {
+    document.addEventListener('DOMContentLoaded', inicializarEscaneoTactil);
+} else {
+    inicializarEscaneoTactil();
 }
