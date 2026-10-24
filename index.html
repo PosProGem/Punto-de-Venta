@@ -13,7 +13,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pocketbase/0.20.1/pocketbase.umd.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 
-    <link rel="stylesheet" href="styles.css?v=2">
+    <link rel="stylesheet" href="styles.css?v=5">
 
     <style>
         /* 📱 BARRA DE PESTAÑAS SUPERIOR */
@@ -87,6 +87,7 @@
         
         
     </style>
+    
     
 </head>
 <body>
@@ -2231,28 +2232,22 @@
     </div>
 </div>
 <script>
-// 🛡️ GUARDIÁN DEL MENÚ: Oculta la barra negra durante el login y la muestra al entrar
-(function() {
-    function vigilarBarraMenu() {
-        const login = document.getElementById('login-screen');
-        const algunBotonTab = document.querySelector('.t-btn');
-        const selectorSucursal = document.getElementById('ui_sucursal');
-        
-        // Detecta el contenedor de la barra negra
-        const barraMenu = algunBotonTab 
-            ? (algunBotonTab.closest('header') || algunBotonTab.closest('nav') || algunBotonTab.parentElement)
-            : (selectorSucursal ? selectorSucursal.parentElement : null);
 
-        if (barraMenu && login) {
-            const loginActivo = login.style.display !== 'none' && window.getComputedStyle(login).display !== 'none';
-            barraMenu.style.display = loginActivo ? 'none' : '';
-        }
-    }
-    
-    document.addEventListener('DOMContentLoaded', vigilarBarraMenu);
-    setInterval(vigilarBarraMenu, 250);
-})();
+<!-- 📷 MODAL GLOBAL PARA ESCANEAR CON LA CÁMARA (CLIC LARGO) -->
+<div id="modal_camara_global" class="modal" style="display: none; z-index: 1000000;">
+    <div class="modal-content" style="max-width: 400px; text-align: center; border-top: 8px solid var(--p);">
+        <h3 style="margin-top: 0; color: var(--d);"><i class="fa-solid fa-camera"></i> Escanear Código</h3>
+        <p style="font-size: 13px; color: #666; margin-bottom: 15px;">Apunta al código de barras con la cámara</p>
+        
+        <!-- Contenedor del video centrado -->
+        <div id="lector_camara_global" style="width: 100%; max-width: 320px; min-height: 240px; background: #000; margin: 0 auto; border-radius: 10px; overflow: hidden; position: relative;"></div>
+        
+        <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
+            <button onclick="cerrarCamaraGlobal()" class="btn-final" style="background: var(--danger); margin: 0; width: auto; padding: 10px 25px;">Cancelar</button>
+        </div>
+    </div>
+</div>
 </script>
-<script src="app.js?v=75"></script>
+<script src="app.js?v=76"></script>
 </body>
 </html>

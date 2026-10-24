@@ -336,7 +336,7 @@ tbody tr { height: auto !important; }
     text-align: center;
     font-size: 16px;
 }
-<style>
+
     /* Forzar tamaño compacto para las notificaciones de transferencia y devolución */
     #modalNotificacionTransferencia > div,
     #modalDevolucion > div,
@@ -346,7 +346,7 @@ tbody tr { height: auto !important; }
         border-radius: 15px !important;
         box-shadow: 0px 10px 30px rgba(0,0,0,0.3) !important;
     }
-</style>
+
 /* Agrupa 2 botones en la misma línea */
 .fila-botones-movil {
     display: flex;
@@ -787,14 +787,149 @@ table, .tabla-ventas { /* Cambia por la clase de tu tabla */
     margin-left: 0 !important;
     padding-left: 5px !important;
 }
-/* 🚫 OCULTAR MENÚ NEGRO MIENTRAS EL LOGIN ESTÉ ABIERTO */
-body:has(#login-screen:not([style*="display: none"]):not([style*="display:none"])) header,
-body:has(#login-screen:not([style*="display: none"]):not([style*="display:none"])) nav,
-body:has(#login-screen:not([style*="display: none"]):not([style*="display:none"])) .top-bar,
-body:has(#login-screen:not([style*="display: none"]):not([style*="display:none"])) .navbar,
-body:has(#login-screen:not([style*="display: none"]):not([style*="display:none"])) .menu-superior,
-body:has(#login-screen:not([style*="display: none"]):not([style*="display:none"])) .nav-bar,
-body:has(#login-screen:not([style*="display: none"]):not([style*="display:none"])) .t-btn {
+/* ======================================================= */
+/* 🔒 BLINDAJE LOGIN: z-index superior para tapar la barra */
+/* ======================================================= */
+#login-screen {
+    z-index: 999999 !important; /* Supera a cualquier barra o botón */
+}
+
+.tab {
+    z-index: 10 !important; /* Mantiene la barra abajo del login */
+}
+
+/* Ocultar el menú si el login no tiene display:none */
+body:has(#login-screen:not([style*="display: none"]):not([style*="display:none"])) .tab {
     display: none !important;
-    visibility: hidden !important;
+}
+
+/* ======================================================= */
+/* 💻 1. PROMOCIONES EN PC (Diseño Simétrico y Alineado)   */
+/* ======================================================= */
+@media (min-width: 769px) {
+    /* Contenedor general que abraza todo (centrado en la pantalla) */
+    #pro-tab > div {
+        max-width: 2000px !important; 
+        margin: 20px auto !important;
+        width: 95% !important;
+        box-sizing: border-box !important;
+    }
+
+    /* La tarjeta rosa: Ahora se estira para coincidir EXACTAMENTE con la tabla */
+    #pro-tab > div > div:first-child,
+    #pro-tab form,
+    #pro-tab div[style*="border-color"] {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 15px 0 30px 0 !important; /* Alineado a la izquierda, sin flotar en el centro */
+        box-sizing: border-box !important;
+    }
+
+    /* La tabla inferior: Comparte el mismo ancho que el formulario */
+    #pro-tab > div > div:last-child {
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+}
+
+/* ======================================================= */
+/* 📱 2. AUDITORÍA Y PROMOCIONES EN CELULAR (Unificado)    */
+/* ======================================================= */
+@media (max-width: 768px) {
+    body {
+        padding-left: 8px !important;
+        padding-right: 8px !important;
+    }
+
+    /* --- AUDITORÍA MÓVIL --- */
+    #audi-tab {
+        width: 100% !important;
+        max-width: 100vw !important;
+        overflow-x: hidden !important;
+        box-sizing: border-box !important;
+    }
+
+    #audi-tab > div,
+    #audi-tab .card,
+    #audi-tab .panel {
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    #audi-tab table {
+        display: block !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: auto !important;
+        white-space: nowrap !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+
+    #audi-tab div[style*="display: flex"],
+    #audi-tab div[style*="display:flex"],
+    #audi-tab .c-grid,
+    #audi-tab .kpi-grid {
+        display: flex !important;
+        flex-direction: column !important;
+        width: 100% !important;
+        gap: 10px !important;
+    }
+
+    #audi-tab div[style*="display: flex"] > div,
+    #audi-tab div[style*="display:flex"] > div {
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    /* --- PROMOCIONES MÓVIL --- */
+    #pro-tab {
+        padding: 5px 0 !important;
+        box-sizing: border-box !important;
+        width: 100% !important;
+        overflow-x: hidden !important;
+    }
+
+    #pro-tab > div {
+        max-width: 100% !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    #pro-tab > div > div:first-child,
+    #pro-tab div[style*="border"],
+    #pro-tab form,
+    .promo-alert-box {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        box-sizing: border-box !important;
+        margin: 5px 0 15px 0 !important;
+        padding: 15px 12px !important;
+    }
+
+    #pro-tab .c-grid, 
+    #pro-tab div[style*="flex"], 
+    #pro-tab div[style*="grid"] {
+        display: flex !important;
+        flex-direction: column !important;
+        width: 100% !important;
+    }
+
+    #pro-tab input, 
+    #pro-tab select { 
+        width: 100% !important; 
+        max-width: 100% !important;
+        box-sizing: border-box !important; 
+    }
+
+    #pro-tab > div > div:last-child {
+        width: 100% !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+
+    #pro-tab table.tabla-pos {
+        min-width: 600px !important;
+    }
 }
