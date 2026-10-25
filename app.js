@@ -1804,14 +1804,8 @@ window.onload = async () => {
         } catch(e) { console.warn("Aviso nube cajeros:", e); }
     }
 
-    // 5. Dibujar la lista desplegable obligatoriamente
-    let selectLogin = document.getElementById('login_user');
-    if (selectLogin && window.usuariosData) {
-        selectLogin.innerHTML = "";
-        Object.keys(window.usuariosData).forEach(u => {
-            selectLogin.innerHTML += `<option value="${u}">${u}</option>`;
-        });
-    } else if (typeof initLoginSelect === 'function') {
+    // 5. Dibujar la lista desplegable obligatoriamente (usando el filtro estricto)
+    if (typeof initLoginSelect === 'function') {
         initLoginSelect();
     }
 
@@ -1898,35 +1892,51 @@ function cerrarModales() {
 // === MÓDULO DE USUARIOS Y LOGIN ===
 // ====================================================================
 function initLoginSelect() { 
-    // 🚫 Oculta la barra de pestañas completa mientras esté el login activo
     let tabMenu = document.querySelector('.tab');
     if (tabMenu) tabMenu.style.display = 'none';
 
     let sel = document.getElementById('login_user'); 
     if(!sel) return;
 
-    let htmlUsuarios = '';
-    
-    // Iteramos sobre todos los usuarios registrados
-    Object.keys(usuariosData).forEach(u => {
-        let datosUsuario = usuariosData[u];
-        
-        // El Admin siempre puede entrar a todos lados (Regla de oro)
-        if (u === "Admin") {
-            htmlUsuarios += `<option value="${u}">${u}</option>`;
-            return;
-        }
+    let suc = typeof sucursalActual !== 'undefined' ? sucursalActual : localStorage.getItem('pos_sucursal_actual');
+    console.log("🔍 SUCURSAL DE LA TERMINAL:", suc); // Diagnóstico
 
-        // Revisamos si el usuario tiene permiso para la sucursal "invisible" donde está la PC
-        if (datosUsuario.sucursales_permitidas) {
-            if (datosUsuario.sucursales_permitidas.includes(sucursalActual)) {
-                htmlUsuarios += `<option value="${u}">${u}</option>`;
+    if (!suc) {
+        sel.innerHTML = '<option value="Admin">Admin</option>';
+        return;
+    }
+
+    let htmlUsuarios = '<option value="">-- Selecciona Cajero --</option>';
+    htmlUsuarios += '<option value="Admin">Admin</option>'; 
+    
+    if (typeof usuariosData !== 'undefined') {
+        Object.keys(usuariosData).forEach(u => {
+            if (u === "Admin") return; 
+            
+            let datosUsuario = usuariosData[u];
+            
+            // Cubrimos todas las posibilidades de cómo se llame la variable en tu BD
+            let permisos = datosUsuario.sucursales_permitidas || datosUsuario.sucursales || datosUsuario.sucursal || [];
+            
+            let tienePermiso = false;
+            
+            // Si es una lista (Array)
+            if (Array.isArray(permisos)) {
+                tienePermiso = permisos.includes(suc);
+            } 
+            // Si es texto (ej. "San Martin, Centro")
+            else if (typeof permisos === 'string') {
+                tienePermiso = permisos.includes(suc);
             }
-        } else {
-            // Si es un usuario muy viejo que no tiene configuración, por defecto lo mostramos
-            htmlUsuarios += `<option value="${u}">${u}</option>`;
-        }
-    });
+
+            if (tienePermiso) {
+                console.log(`✅ ${u} autorizado para ${suc}`);
+                htmlUsuarios += `<option value="${u}">${u}</option>`;
+            } else {
+                console.log(`❌ ${u} bloqueado`);
+            }
+        });
+    }
 
     sel.innerHTML = htmlUsuarios;
 }
@@ -2087,44 +2097,40 @@ window.actualizarMarcaDeAgua = async function() {
     }
 };
 window.filtrarUsuariosPorSucursal = function() {
-    let selectorSucursal = document.getElementById('login_sucursal');
     let selectorUsuarios = document.getElementById('login_user');
-    
-    if(!selectorSucursal || !selectorUsuarios) return;
+    if(!selectorUsuarios) return;
 
-    let sucursalElegida = selectorSucursal.value;
+    // 1. Buscamos la sucursal guardada (lee la variable global o la memoria local)
+    let sucursalElegida = (typeof sucursalActual !== 'undefined' && sucursalActual) 
+                          ? sucursalActual 
+                          : localStorage.getItem('pos_sucursal_actual');
     
-    // Si no han elegido sucursal, vaciamos la lista de usuarios
-    if (sucursalElegida === "") {
-        selectorUsuarios.innerHTML = '<option value="">-- Selecciona Sucursal Primero --</option>';
-        selectorUsuarios.disabled = true;
+    // 2. Si la terminal no tiene sucursal, SE BLOQUEA TODO y solo queda Admin
+    if (!sucursalElegida || sucursalElegida === "") {
+        selectorUsuarios.innerHTML = '<option value="Admin">Admin</option>';
         return;
     }
     
-    // Preparamos la lista
-    selectorUsuarios.disabled = false;
-    let htmlUsuarios = '<option value="">-- Selecciona Usuario --</option>';
+    // 3. Si hay sucursal, empezamos la lista solo con Admin
+    let htmlUsuarios = '<option value="">-- Selecciona Cajero --</option>';
+    htmlUsuarios += '<option value="Admin">Admin</option>'; 
     
-    // Iteramos sobre todos los usuarios registrados
-    Object.keys(usuariosData).forEach(u => {
-        let datosUsuario = usuariosData[u];
-        
-        // El Admin siempre puede entrar a todos lados (Regla de oro)
-        if (u === "Admin") {
-            htmlUsuarios += `<option value="${u}">${u}</option>`;
-            return;
-        }
-
-        // Revisamos si el usuario tiene permiso para la sucursal elegida
-        if (datosUsuario.sucursales_permitidas) {
-            if (datosUsuario.sucursales_permitidas.includes(sucursalElegida)) {
+    // 4. Filtro ESTRICTO: Solo agrega a los que coincidan con la sucursal
+    if (typeof usuariosData !== 'undefined') {
+        Object.keys(usuariosData).forEach(u => {
+            if (u === "Admin") return; // Admin ya está arriba
+            
+            let datosUsuario = usuariosData[u];
+            
+            // Busca en "sucursales_permitidas", si no existe busca en "sucursales", si no, asume vacío
+            let arregloSucursales = datosUsuario.sucursales_permitidas || datosUsuario.sucursales || [];
+            
+            // Solo si el nombre de la sucursal está dentro de su configuración, se muestra
+            if (arregloSucursales.includes(sucursalElegida)) {
                 htmlUsuarios += `<option value="${u}">${u}</option>`;
             }
-        } else {
-            // Si es un usuario muy viejo que no tiene configuración, por defecto lo mostramos para no perder el acceso
-            htmlUsuarios += `<option value="${u}">${u}</option>`;
-        }
-    });
+        });
+    }
 
     selectorUsuarios.innerHTML = htmlUsuarios;
 };
@@ -3940,7 +3946,15 @@ window.confirmarVenta = async function(cambioFinal = 0) {
             sumaTotalCobrada += subCobrado;
             let printName = (x.nom || 'Producto').substring(0,15); 
             itemsTicketHtml += `<tr><td>${cantVendida}</td><td>${printName}</td><td style="text-align:right">$${subtotalNormal.toFixed(2)}</td></tr>`;
-            
+            // 👇 AQUÍ AGREGAMOS LA VALIDACIÓN DEL PRECIO MANUAL / DESCUENTO
+            let diferencia = subtotalNormal - subCobrado;
+            if (diferencia > 0.01) { // Usamos 0.01 para evitar errores de decimales
+                itemsTicketHtml += `<tr>
+                    <td></td>
+                    <td style="text-align: right; font-size: 11px; color: #333;">↳ Precio Manual:</td>
+                    <td style="text-align: right; font-size: 11px; color: #333;">-$${diferencia.toFixed(2)}</td>
+                </tr>`;
+            }
             let costoUnitario = parseFloat(pMaestro.cos || pOriginal.cos || pMaestro.pc || pOriginal.pc || 0);
             detallesParaGuardar.push({ cod: x.cod, nom: x.nom || 'Producto', can: cantVendida, subtotal: subCobrado, pv: precioVentaNormal, costo: costoUnitario, dep: pOriginal.dep || "General" });
             
