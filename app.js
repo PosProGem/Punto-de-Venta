@@ -14764,13 +14764,11 @@ window.revisarEstadoTerminalSaaS = async function() {
             if (window.usuariosData && window.usuariosData["undefined"]) delete window.usuariosData["undefined"];
         }
 
-        // Llenamos la lista desplegable visualmente DE INMEDIATO
-        let select = document.getElementById('login_user');
-        if (select && window.usuariosData) {
-            select.innerHTML = "";
-            Object.keys(window.usuariosData).forEach(u => {
-                select.innerHTML += `<option value="${u}">${u}</option>`;
-            });
+        // Llenamos la lista desplegable usando nuestro filtro estricto
+        if (typeof initLoginSelect === 'function') {
+            initLoginSelect();
+        } else if (typeof filtrarUsuariosPorSucursal === 'function') {
+            filtrarUsuariosPorSucursal();
         }
         // 📦 DESCARGA CONDICIONADA DEL CATÁLOGO BASE
         // 🔄 RESTAURADOR INTELIGENTE DE INVENTARIO (PARA TERMINALES NUEVAS O TRAS BORRAR CACHÉ)
