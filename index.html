@@ -16,6 +16,27 @@
     <link rel="stylesheet" href="styles.css?v=5">
 
     <style>
+        /* 1. Fondo azul y margen casi invisible (4 pixeles) */
+html {
+    background-color: #007bff !important; /* Color azul */
+    padding: 4px !important; /* Grosor muy delgado */
+    box-sizing: border-box !important;
+    height: 100vh !important;
+    width: 100vw !important;
+    overflow: hidden !important;
+}
+
+/* 2. Tu sistema contenido adentro */
+body {
+    height: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    position: relative !important;
+    background-color: #ffffff !important; 
+    border-radius: 6px !important; /* Curva más ligera para que luzca natural */
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.3) !important; 
+    overflow: hidden !important;
+}
         /* 📱 BARRA DE PESTAÑAS SUPERIOR */
         .tab {
             display: flex !important;

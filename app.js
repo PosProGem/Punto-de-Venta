@@ -3446,6 +3446,15 @@ window.borrarArticuloVenta = function(index) {
 
     // Ejecutamos el borrado normal del carrito
     carV.splice(index, 1);
+
+    // 👇 AQUÍ AGREGAMOS LA CONDICIÓN 👇
+    // Si el carrito se quedó completamente vacío tras borrar este artículo, reseteamos la memoria de la pausa
+    if (carV.length === 0) {
+        window.historialVentaActual = [];
+        window.idVentaPausadaActual = null;
+        nombreVentaActual = "";
+    }
+    // 👆 FIN DE LA CONDICIÓN 👆
     
     // Acomodamos la vista y el escáner
     if (typeof focusVentaIndex !== 'undefined') {
@@ -4113,6 +4122,10 @@ window.confirmarVenta = async function(cambioFinal = 0) {
         }
 
         carV = []; nombreVentaActual = ""; 
+        // Agrega esto justo después de donde dice carV = []; o al terminar de cobrar/cancelar
+window.historialVentaActual = [];
+window.idVentaPausadaActual = null;
+nombreVentaActual = "";
         if (typeof forceWholesale !== 'undefined') forceWholesale = false; 
         if (typeof pagosCobro !== 'undefined') pagosCobro.length = 0; window.pagosCobro = [];
         if (typeof restanteCobro !== 'undefined') restanteCobro = 0; window.restanteCobro = 0;
@@ -4124,6 +4137,7 @@ window.confirmarVenta = async function(cambioFinal = 0) {
             if(typeof window.renderV === "function") window.renderV(); 
             if(typeof window.renderClientes === "function") window.renderClientes();
         }, 50); 
+        
         
     } catch(err) { 
         console.error("Error en Venta:", err); 
@@ -4303,50 +4317,38 @@ async function preguntarPausar() {
 // =========================================================
 // 2. RETOMAR VENTA (CON ENVOLTORIO FANTASMA)
 // =========================================================
-function retomarVenta(idBuscar) { 
+// =========================================================
+// 2. RETOMAR VENTA (SIN BORRARLA PREMATURAMENTE)
+// =========================================================
+window.retomarVenta = function(idBuscar) { 
     let idStr = String(idBuscar);
     let i = pausadas.findIndex(p => String(p.id) === idStr);
     if (i === -1) return;
 
     let ventaRecuperada = pausadas[i];
     
+    // 1. Cargamos los artículos y el nombre al sistema
     carV = Array.isArray(ventaRecuperada.items) ? [...ventaRecuperada.items] : [];
     nombreVentaActual = ventaRecuperada.nom || "Venta";
     
-    // Retenemos el ID
+    // 2. Retenemos el ID y el historial en la memoria
     window.idVentaPausadaActual = idStr; 
-
     window.historialVentaActual = ventaRecuperada.caja_negra ? [...ventaRecuperada.caja_negra] : [];
     
+    // 3. Registramos en la caja negra que la venta fue reabierta
     if (typeof registrarEventoVenta === 'function') {
         let cajero = (typeof usuarioActual !== 'undefined' && usuarioActual) ? usuarioActual : 'Desconocido';
         registrarEventoVenta("REANUDAR", `Venta "${nombreVentaActual}" despausada por [${cajero}]`);
     }
 
-    pausadas.splice(i, 1);
-    localStorage.setItem("pos_pausadas_v6", JSON.stringify(pausadas));
-
-    // ☁️ ENVOLTORIO FANTASMA Y BORRADO
-    if (typeof pb !== 'undefined' && navigator.onLine) {
-        // También metemos al fantasma dentro de "data"
-        let payloadFantasma = {
-            data: { nom: 'FANTASMA', items: [], updatedAt: Date.now() }
-        };
-        // 1. Lo vaciamos para que el radar local lo ignore si lo llega a pescar
-        pb.collection("pausadas").update(idStr, payloadFantasma, { requestKey: null })
-          .then(() => {
-              // 2. Lo destruimos de la nube de PikaPods
-              pb.collection("pausadas").delete(idStr, { requestKey: null }).catch(() => {});
-          })
-          .catch(() => {
-              pb.collection("pausadas").delete(idStr, { requestKey: null }).catch(() => {});
-          });
-    }
+    // 🚨 ELIMINAMOS EL BLOQUE DE BORRADO EN LA NUBE 🚨
+    // Ya no hacemos el .splice() ni el pb.collection().delete() aquí.
+    // La venta seguirá existiendo en PocketBase como respaldo hasta que se cobre o se vacíe el carrito.
 
     if (typeof window.renderV === 'function') window.renderV();
     if (typeof cerrarModales === 'function') cerrarModales();
     if (typeof actualizarContadorPausadas === 'function') actualizarContadorPausadas();
-}
+};
 
 // =========================================================
 // 3. ELIMINAR VENTA PAUSADA
@@ -4420,27 +4422,30 @@ if (!window.renderV_original_blindado) {
             window.idVentaPausadaActual = null; 
             window.nombreVentaActual = "";
             
-            if (typeof pb !== 'undefined' && navigator.onLine) {
-                (async () => {
-                    try {
-                        // Intento 1: Borrar como si fuera una venta nueva
-                        await pb.collection("pausadas").delete(idSobrante, { requestKey: null });
-                    } catch (e) {
-                        // Intento 2: 🧟 CAZADOR DE ZOMBIES. Si falló, la busca por dentro y la fulmina.
+            if (typeof pb !== 'undefined') {
+                if (navigator.onLine) {
+                    // Hay internet, lo borramos directo
+                    (async () => {
                         try {
-                            let encontrado = await pb.collection("pausadas").getFirstListItem(
-                                `id="${idSobrante}" || doc_id="${idSobrante}"`, 
-                                { requestKey: null }
-                            );
-                            if (encontrado && encontrado.id) {
-                                await pb.collection("pausadas").delete(encontrado.id, { requestKey: null });
-                                console.log("🧟 Zombie cazado y destruido en la nube.");
-                            }
-                        } catch (errBusqueda) {}
-                    }
-                })();
+                            await pb.collection("pausadas").delete(idSobrante, { requestKey: null });
+                            console.log("💥 Venta pausada vaciada y destruida localmente.");
+                        } catch (e) {
+                            try {
+                                let encontrado = await pb.collection("pausadas").getFirstListItem(`id="${idSobrante}" || doc_id="${idSobrante}"`, { requestKey: null });
+                                if (encontrado && encontrado.id) {
+                                    await pb.collection("pausadas").delete(encontrado.id, { requestKey: null });
+                                }
+                            } catch (errBusqueda) {}
+                        }
+                    })();
+                } else {
+                    // 📡 NO HAY INTERNET: Lo anotamos en la libreta de zombies para matarlo después
+                    console.log("📴 Sin conexión. Guardando ticket zombie para borrarlo luego.");
+                    let pendientes = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
+                    if (!pendientes.includes(idSobrante)) pendientes.push(idSobrante);
+                    localStorage.setItem('pos_zombies_pausadas', JSON.stringify(pendientes));
+                }
             }
-            console.log("💥 Venta pausada vaciada y destruida localmente.");
         }
         
         if (typeof window.renderV_original_blindado === 'function') {
@@ -15185,3 +15190,32 @@ if (document.readyState === "loading") {
 } else {
     inicializarEscaneoTactil();
 }
+window.cazarZombiesOffline = function() {
+    if (typeof pb === 'undefined' || !navigator.onLine) return;
+    
+    let pendientes = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
+    if (pendientes.length === 0) return;
+
+    console.log(`🧟 Cazando ${pendientes.length} tickets zombies pendientes...`);
+    
+    pendientes.forEach(idZombie => {
+        pb.collection("pausadas").delete(idZombie, { requestKey: null })
+          .then(() => {
+              // Si lo logra matar, lo quita de la lista
+              let actualizados = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
+              actualizados = actualizados.filter(id => id !== idZombie);
+              localStorage.setItem('pos_zombies_pausadas', JSON.stringify(actualizados));
+          })
+          .catch(() => {
+              // Si da error 404, significa que ya no existe, también lo quitamos
+              let actualizados = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
+              actualizados = actualizados.filter(id => id !== idZombie);
+              localStorage.setItem('pos_zombies_pausadas', JSON.stringify(actualizados));
+          });
+    });
+};
+
+// Se ejecuta cada vez que el internet regrese
+window.addEventListener('online', cazarZombiesOffline);
+// Y también al arrancar el sistema por si se quedó alguno de ayer
+setTimeout(cazarZombiesOffline, 3000);
