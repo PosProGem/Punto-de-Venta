@@ -16,26 +16,31 @@
     <link rel="stylesheet" href="styles.css?v=5">
 
     <style>
-        /* 1. Fondo azul y margen casi invisible (4 pixeles) */
+        /* 1. Fondo azul fijo */
 html {
-    background-color: #007bff !important; /* Color azul */
-    padding: 4px !important; /* Grosor muy delgado */
+    background-color: #007bff !important; 
+    padding: 4px !important; 
     box-sizing: border-box !important;
-    height: 100vh !important;
-    width: 100vw !important;
-    overflow: hidden !important;
+    height: 100dvh !important; /* 👈 dvh evita problemas con teclados y barras en celular */
+    overflow: hidden !important; /* Mantiene el marco congelado en su lugar */
 }
 
-/* 2. Tu sistema contenido adentro */
+/* 2. Tu sistema contenido adentro con scroll activado */
 body {
     height: 100% !important;
     width: 100% !important;
     margin: 0 !important;
     position: relative !important;
     background-color: #ffffff !important; 
-    border-radius: 6px !important; /* Curva más ligera para que luzca natural */
+    border-radius: 6px !important; 
     box-shadow: 0 0 8px rgba(0, 0, 0, 0.3) !important; 
-    overflow: hidden !important;
+    
+    /* 🔥 LA SOLUCIÓN: Activar el deslizamiento vertical */
+    overflow-y: auto !important; 
+    overflow-x: hidden !important; /* Bloquea el deslizamiento horizontal accidental */
+    
+    /* Suaviza el scroll en dispositivos iOS */
+    -webkit-overflow-scrolling: touch !important;
 }
         /* 📱 BARRA DE PESTAÑAS SUPERIOR */
         .tab {

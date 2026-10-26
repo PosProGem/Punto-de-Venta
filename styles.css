@@ -386,31 +386,61 @@ tbody tr { height: auto !important; }
 /* ======================================================= */
 
 .panel-izq {
-    position: relative; 
+    position: relative;
+    /* Aseguramos que el fondo del panel no oculte la imagen */
+    background-color: #ffffff !important;
 }
 
 .panel-izq::after {
     content: "";
     position: absolute;
-    top: 160px; /* Baja la imagen para que no toque el buscador ni los botones */
-    left: 20px; 
-    right: 20px; 
-    bottom: 20px;
+    /* Ajusta top para que inicie debajo de los botones superiores */
+    top: 110px; 
+    left: 10px; 
+    right: 10px; 
+    bottom: 10px;
     
-    background-image: var(--logo-sucursal);
-    background-size: contain; /* Tamaño fijo para que se vea proporcionado */
+    background-image: var(--logo-sucursal, url('./img/marca_agua.jpg'));
+    background-size: contain; 
     background-position: center; 
     background-repeat: no-repeat;
     
-    opacity: 0.15; 
+    /* 👈 Subimos a 0.85 o 1 porque tu imagen ya viene desvanecida de fábrica */
+    opacity: 0.25; 
     pointer-events: none; 
-    z-index: 0; /* Lo manda al fondo absoluto */
+    z-index: 0;
 }
 
-/* Protege tu buscador, botones y tabla para que siempre estén arriba de la imagen */
+/* Permitir que el fondo del pseudo-elemento sea visible a través de la tabla */
 .panel-izq > * {
     position: relative;
     z-index: 1;
+}
+
+/* 1. Las celdas quedan transparentes para heredar el color de la fila */
+.panel-izq tbody td {
+    background-color: transparent !important;
+    border: none !important;
+}
+
+/* 2. Filas normales: Fondo blanco sólido (tapan la marca de agua) */
+.panel-izq tbody tr {
+    background-color: #ffffff ;
+    border: none !important;
+    position: relative;
+    z-index: 2;
+    transition: background-color 0.15s ease;
+}
+
+/* 3. FILA ELEGIDA: Azul tenue suave */
+.panel-izq tbody tr.seleccionado,
+.panel-izq tbody tr.selected,
+.panel-izq tbody tr.activa,
+.panel-izq tbody tr.active,
+.panel-izq tbody tr.fila-seleccionada,
+.panel-izq tbody tr.item-activo {
+    background-color: #f0e8fd !important; /* Azul tenue muy suave */
+    border-left: 4px solid #1976d2 !important; /* Recupera el indicador azul lateral sin líneas horizontales */
 }
 /* ========================================= */
 /* 🌟 TEXTO MODERNO Y ELEGANTE (Tipo Apple)  */

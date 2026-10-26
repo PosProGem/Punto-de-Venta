@@ -8,17 +8,25 @@ window.getNombreDBLocal = function() {
     // 1. Consultamos primero localStorage (100% seguro, sin tocar pb)
     let idNegocio = localStorage.getItem('pos_negocio_id_saas');
 
-    // 2. Si no está en storage, consultamos mediante window.pb para no bloquear la inicialización
+    // 2. Si no está en storage, consultamos mediante window.pb
     if (!idNegocio && typeof window !== 'undefined' && window.pb && window.pb.authStore && window.pb.authStore.isValid && window.pb.authStore.model) {
         idNegocio = window.pb.authStore.model.negocio_id;
     }
 
-    return idNegocio ? `POS_Database_${idNegocio}` : 'POS_Database';
+    // 🛑 Si NO hay negocio vinculado, devolvemos null (no inventar "POS_Database")
+    return idNegocio ? `POS_Database_${idNegocio}` : null;
 };
 
 window.conectarDBLocal = function() {
     let nombreDB = window.getNombreDBLocal();
     
+    // 🛑 CANDADO: Si no hay negocio vinculado, no crear ni abrir base de datos
+    if (!nombreDB) {
+        console.warn("🛑 Base de datos local en pausa: Terminal no vinculada a ningún negocio.");
+        window.dbLocal = null;
+        return;
+    }
+
     if (typeof Dexie !== 'undefined') {
         window.dbLocal = new Dexie(nombreDB);
         window.dbLocal.version(2).stores({
@@ -31,6 +39,11 @@ window.conectarDBLocal = function() {
         console.log("💾 Base de datos local conectada a:", nombreDB);
     }
 };
+
+// 🛑 Conectar disco local al arrancar ÚNICAMENTE si la terminal está vinculada
+if (localStorage.getItem('pos_negocio_id_saas')) {
+    window.conectarDBLocal();
+}
 
 // Conectar disco local al arrancar
 window.conectarDBLocal();
@@ -1770,6 +1783,33 @@ function obtenerProductoMaestro(cod) {
 // 🚀 1. ARRANQUE LIGERO (Súper rápido y con memoria protegida)
 // ====================================================================
 window.onload = async () => { 
+    // ====================================================================
+// 🛑 GUARDIÁN DE ENTRADA: ¿Está la máquina vinculada a una cuenta?
+// ====================================================================
+const idNegocio = localStorage.getItem('pos_negocio_id_saas');
+
+if (!idNegocio) {
+    console.warn("🛑 Dispositivo sin vinculación. Deteniendo arranque.");
+
+    // 1. Ocultar por completo la interfaz de cobro y barra superior
+    document.querySelectorAll('.panel-izq, .panel-der').forEach(el => el.style.display = 'none');
+    const header = document.querySelector('header, .navbar, .header, #barra-superior');
+    if (header) header.style.display = 'none';
+
+    // 2. Mostrar la ventana de acceso en modo "Vincular Cuenta"
+    const pantallaLogin = document.getElementById('login-screen');
+    const formVincular = document.getElementById('form_vincular_terminal');
+    const formPIN = document.getElementById('form_cajeros_pin');
+    const titulo = document.getElementById('login_titulo');
+
+    if (pantallaLogin) pantallaLogin.style.setProperty('display', 'flex', 'important');
+    if (formVincular) formVincular.style.display = 'flex';
+    if (formPIN) formPIN.style.display = 'none';
+    if (titulo) titulo.innerHTML = '🔗 Vincular Computadora';
+
+    // ⛔ FRENO ABSOLUTO: No continúa con nada más
+    return;
+}
     console.log("🚀 Iniciando sistema... Paso 1: Interfaz y Cajeros");
     
     // 1. Acomodo básico de la pantalla
@@ -2071,30 +2111,36 @@ window.intentarLogin = async function() {
 window.actualizarMarcaDeAgua = async function() {
     let nombreSucursal = String(typeof sucursalActual !== 'undefined' ? sucursalActual : "Matriz").replace(/📍/g, '').trim();
     
-    // 🌟 AHORA BUSCAMOS EL PANEL IZQUIERDO COMPLETO
     let contenedorPanel = document.querySelector('.panel-izq');
     if (!contenedorPanel) return; 
 
+    // 1. RUTA POR DEFECTO
+    let urlLogoFinal = './img/marca_agua.jpg';
+
+    // 2. CONSULTAR SI EXISTE PERSONALIZADA EN POCKETBASE
     try {
         let urlPB = `https://onyx-badger.pikapod.net/api/collections/config_visual/records?filter=(sucursal='${nombreSucursal}')`;
         let respuesta = await fetch(urlPB);
         let data = await respuesta.json();
 
-        if (data.items && data.items.length > 0) {
+        if (data.items && data.items.length > 0 && data.items[0].marca_agua) {
             let configVisual = data.items[0];
-            
-            if (configVisual.marca_agua) {
-                let urlLogo = `https://onyx-badger.pikapod.net/api/files/${configVisual.collectionId}/${configVisual.id}/${configVisual.marca_agua}`;
-                
-                // Aplicamos la variable CSS al panel izquierdo
-                contenedorPanel.style.setProperty('--logo-sucursal', `url('${urlLogo}')`);
-            } else {
-                contenedorPanel.style.setProperty('--logo-sucursal', `none`);
-            }
+            let tiempoExacto = new Date().getTime();
+            urlLogoFinal = `https://onyx-badger.pikapod.net/api/files/${configVisual.collectionId}/${configVisual.id}/${configVisual.marca_agua}?t=${tiempoExacto}`;
         }
     } catch (error) {
-        console.error("Error al descargar la marca de agua:", error);
+        console.warn("⚠️ Error al consultar marca de agua en nube, usando default:", error);
     }
+
+    // 3. APLICACIÓN DUAL (Para cubrir cómo lo tenga estructurado tu CSS)
+    // Opción A: Si tu CSS usa var(--logo-sucursal)
+    contenedorPanel.style.setProperty('--logo-sucursal', `url('${urlLogoFinal}')`);
+
+    // Opción B: Aplicación directa al estilo de fondo del contenedor
+    contenedorPanel.style.backgroundImage = `url('${urlLogoFinal}')`;
+    contenedorPanel.style.backgroundRepeat = "no-repeat";
+    contenedorPanel.style.backgroundPosition = "center";
+    contenedorPanel.style.backgroundSize = "contain"; // o "cover" según cómo la prefieras
 };
 window.filtrarUsuariosPorSucursal = function() {
     let selectorUsuarios = document.getElementById('login_user');
@@ -14899,23 +14945,57 @@ setTimeout(() => {
 // ====================================================================
 // 🔓 DESVINCULAR TERMINAL SAAS
 // ====================================================================
-window.desvincularTerminal = function() {
-    let confirmar = confirm("⚠️ ¿Estás seguro de que deseas desvincular esta computadora?\n\nTus datos en la nube están a salvo, pero esta pantalla ya no dejará cobrar con PIN hasta que el dueño vuelva a ingresar su correo y contraseña.");
-    
-    if (confirmar) {
-        // 1. Cerramos la sesión maestra de PocketBase
-        if (typeof pb !== 'undefined') pb.authStore.clear();
-        
-        // 2. Borramos la memoria vinculante del navegador
-        localStorage.removeItem('pos_negocio_id_saas');
-        localStorage.removeItem('pos_usuarios_v1');
-        localStorage.removeItem('pos_sesion_caja');
-        window.usuariosData = {};
-        
-        // 3. Actualizamos la pantalla de inmediato para ocultar los PINs
-        if (typeof revisarEstadoTerminalSaaS === 'function') revisarEstadoTerminalSaaS();
-        
-        alert("✅ Terminal desvinculada exitosamente.");
+window.desvincularTerminal = async function() {
+    let confirmar = confirm("⚠️ ¿Estás seguro de que deseas desvincular esta terminal?\n\nSe borrará por completo la base de datos local y el sistema quedará como nuevo.");
+    if (!confirmar) return;
+
+    try {
+        // 1. Apagar radares y desconectar PocketBase
+        if (typeof pb !== 'undefined') {
+            if (pb.realtime) pb.realtime.disconnect();
+            if (pb.authStore) pb.authStore.clear();
+        }
+
+        // 2. Cerrar conexiones activas de IndexedDB para que no bloquee el borrado
+        if (window.dbLocal && typeof dbLocal.close === 'function') {
+            dbLocal.close();
+        }
+
+        // 3. BOMBA NUCLEAR: Borrar TODAS las bases de datos locales existentes (sin importar cómo se llamen)
+        if (window.indexedDB) {
+            if (indexedDB.databases) {
+                const bases = await indexedDB.databases();
+                for (let b of bases) {
+                    if (b.name) {
+                        console.log("🗑️ Eliminando base local:", b.name);
+                        indexedDB.deleteDatabase(b.name);
+                    }
+                }
+            } else {
+                indexedDB.deleteDatabase("POS_Database");
+            }
+        }
+
+        // 4. Limpiar todo el almacenamiento local y de sesión
+        localStorage.clear();
+        sessionStorage.clear();
+
+        // 5. Limpiar registros de Caché del navegador
+        if ('caches' in window) {
+            const cacheNames = await caches.keys();
+            await Promise.all(cacheNames.map(name => caches.delete(name)));
+        }
+
+        alert("✅ Terminal completamente desvinculada.");
+
+        // 6. Recarga forzada desde cero
+        window.location.href = window.location.origin + window.location.pathname;
+
+    } catch (e) {
+        console.error("Error al reiniciar terminal:", e);
+        localStorage.clear();
+        sessionStorage.clear();
+        window.location.reload();
     }
 };
 window.prepararCaptcha = function() {
@@ -15190,6 +15270,37 @@ if (document.readyState === "loading") {
 } else {
     inicializarEscaneoTactil();
 }
+// 📸 Asignación universal de cámara por doble clic
+window.vincularCamarasGlobales = function() {
+    // Lista de los IDs de los inputs de tu sistema que usan código de barras
+    const inputsDeEscaneo = [
+        'v_cod',        // Ventas principal
+        'i_b_cod',      // Buscador de Inventario 
+        'c_cod',        // Compras 
+        'prov_cod',     // Proveedores 
+        'k_cod',        // 👈 Código del Kit en sí
+        'k_comp_cod'    // 👈 Código para agregar componentes al Kit
+    ];
+
+    inputsDeEscaneo.forEach(id => {
+        // En JavaScript, si un ID tiene dos puntos (:), a veces requiere escaparse en selectores,
+        // pero getElementById lo lee sin problemas directamente.
+        let inputEl = document.getElementById(id); 
+        if (inputEl) {
+            inputEl.removeEventListener('dblclick', window._handlerCamara);
+            
+            window._handlerCamara = function() {
+                abrirCamaraGlobal(inputEl);
+            };
+            
+            inputEl.addEventListener('dblclick', window._handlerCamara);
+        }
+    });
+};
+
+setTimeout(() => {
+    if (typeof vincularCamarasGlobales === 'function') vincularCamarasGlobales();
+}, 1500);
 window.cazarZombiesOffline = function() {
     if (typeof pb === 'undefined' || !navigator.onLine) return;
     
