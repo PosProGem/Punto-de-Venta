@@ -550,6 +550,13 @@ body {
                 <button id="btn_sync_inventario" onclick="forzarSincronizacionInventario()" style="background: #ff9800; color: white; padding: 12px 20px; font-size: 14px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: 0.2s; display: inline-flex; align-items: center; gap: 8px;">
     🔄 FORZAR DESCARGA DE CATÁLOGO
 </button>
+<!-- Botones de Acción en Inventario -->
+<div style="display: flex; gap: 10px; align-items: center; margin-left: auto;">
+    <!-- Botón 1: Cargar / Alternar Catálogo Base -->
+    <button type="button" onclick="gestionarCatalogoBase()" 
+            style="background: #0284c7; color: white; border: none; padding: 8px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        📦 Catálogo Base
+    </button>
             </div>
         </div>
         <div style="display: flex; gap: 10px; margin-bottom: 15px;">
@@ -561,6 +568,12 @@ body {
         <option value="">✅ Stock Normal</option>
         <option value="critico">⚠️ Solo por agotarse</option>
     </select>
+    <!-- Botón 2: Agregar Producto Nuevo -->
+    <button type="button" onclick="abrirModalNuevoProducto()" 
+            style="background: #16a34a; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        ➕ Nuevo Producto
+    </button>
+</div>
         </div>
         <div style="height:calc(100vh - 220px); overflow-y:auto; border: 1px solid #ddd; border-radius:8px;">
             <table class="tabla-pos" style="margin-top:0;">
@@ -871,12 +884,39 @@ body {
 </div>
 
 <div id="rec-tab" class="tabcontent no-print">
-    <div style="height: 100%; display: flex; flex-direction: column;">
-        <div style="background: #fff; padding: 12px; text-align: center; border-bottom: 2px solid #ddd; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-            <span style="color:#666; font-size: 13px; margin-right: 15px;">¿La página se ve en blanco o bloqueada?</span>
-            <a href="https://www.multiprepaid.mx/web/login/menuprin.aspx" target="_blank" style="background:var(--p); color:white; padding: 8px 15px; border-radius: 6px; text-decoration:none; font-weight:bold; font-size: 13px;">🔗 ABRIR PORTAL EN NUEVA PESTAÑA</a>
+    <div style="position: relative; width: 100%; height: 100%; overflow: hidden; display: flex; flex-direction: column;">
+        
+        <!-- 🛑 PANTALLA DE BLOQUEO Y FORMULARIO -->
+        <div id="bloqueo_recargas" style="display: flex; flex-direction: column; align-items: center; justify-content: center; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #f8fafc; z-index: 50;">
+            <div style="background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 90%; max-width: 450px; text-align: center; border-top: 5px solid #2563eb;">
+                <h2 style="color: #1e40af; margin-top: 0; margin-bottom: 10px;">📱 Venta de Recargas</h2>
+                <p style="color: #475569; font-size: 14px; margin-bottom: 20px;">
+                    Para habilitar el cobro de servicios y recargas telefónicas en tu sucursal, envía tu solicitud.
+                </p>
+                
+                <input type="text" id="req_nombre" placeholder="👤 Nombre Completo" style="width: 100%; padding: 12px; margin-bottom: 12px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 14px;">
+                <input type="text" id="req_whatsapp" placeholder="💬 Número de WhatsApp" style="width: 100%; padding: 12px; margin-bottom: 12px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 14px;">
+                <input type="email" id="req_correo" placeholder="📧 Correo Electrónico" style="width: 100%; padding: 12px; margin-bottom: 12px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 14px;">
+                <input type="text" id="req_direccion" placeholder="📍 Dirección Completa del Negocio" style="width: 100%; padding: 12px; margin-bottom: 20px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 14px;">
+                
+                <button onclick="enviarSolicitudRecargas()" style="width: 100%; padding: 14px; background: #2563eb; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 15px; transition: background 0.3s;">
+                    🚀 SOLICITAR ACCESO
+                </button>
+                <p id="msg_recargas_pendiente" style="display: none; color: #d97706; font-weight: bold; margin-top: 15px; background: #fef3c7; padding: 10px; border-radius: 6px;">
+                    ⏳ Tu solicitud está en revisión. Te notificaremos pronto.
+                </p>
+            </div>
         </div>
-        <iframe src="https://www.multiprepaid.mx/web/login/menuprin.aspx" style="width:100%; flex-grow:1; border:none; background: #fff;"></iframe>
+
+        <!-- 🌐 TU PORTAL ORIGINAL DE MULTIPREPAID (Se oculta por defecto hasta que lo apruebes) -->
+        <div id="portal_recargas" style="display: none; height: 100%; flex-direction: column;">
+            <div style="background: #fff; padding: 12px; text-align: center; border-bottom: 2px solid #ddd; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                <span style="color:#666; font-size: 13px; margin-right: 15px;">¿La página se ve en blanco o bloqueada?</span>
+                <a href="https://www.multiprepaid.mx/web/login/menuprin.aspx" target="_blank" style="background:var(--p); color:white; padding: 8px 15px; border-radius: 6px; text-decoration:none; font-weight:bold; font-size: 13px;">🔗 ABRIR PORTAL EN NUEVA PESTAÑA</a>
+            </div>
+            <iframe src="https://www.multiprepaid.mx/web/login/menuprin.aspx" style="width:100%; flex-grow:1; border:none; background: #fff;"></iframe>
+        </div>
+        
     </div>
 </div>
 
@@ -1133,6 +1173,10 @@ body {
     <div class="modal-content" style="width:600px">
         <h3 style="margin-top:0; color:var(--p);">✏️ Editar Producto</h3>
         <input type="hidden" id="e_cod_original">
+        
+        <!-- Ocultamos Faltante Local para que el JS no marque error al intentar llenarlo -->
+        <input type="hidden" id="e_fal">
+
         <div class="c-grid">
             <div style="grid-column: span 2;"><label>Código</label><input type="text" id="e_cod"></div>
             <div><label>Departamento</label><input type="text" id="e_dep" placeholder="Ej. General"></div>
@@ -1153,21 +1197,142 @@ body {
             <div><label>P. Venta</label><input type="number" id="e_pv" step="0.01" oninput="recalcGanEdicion()"></div>
             <div><label>P. Mayo</label><input type="number" id="e_pm"></div>
             <div><label>Min Mayo</label><input type="number" id="e_md"></div>
+            
             <div><label>P. Mayo2</label><input type="number" id="e_pm2"></div>
             <div><label>Min Mayo2</label><input type="number" id="e_md2"></div>
-            <!-- 🌟 AQUÍ INYECTAMOS EL NUEVO CAMPO MAESTRO -->
+            
+            <!-- 🌟 Regresamos Código Maestro a su tamaño original (span 2) -->
             <div style="grid-column: span 2;">
                 <label style="color:var(--p); font-weight:bold;">👑 Código Maestro (Jefe)</label>
                 <input type="text" id="e_grupo" placeholder="Ej. 12345 (Vacío si este es el Jefe)">
             </div>
             
-            <div><label style="color:var(--danger)">Faltante Local</label><input type="number" id="e_fal" disabled style="background:#eee;"></div>
+            <!-- 🌟 Div vacío para respetar el hueco de la tercera columna -->
+            <div></div>
         </div>
         
         <div style="display: flex; gap: 10px; margin-top: 15px;">
             <button class="btn-final" style="background:var(--danger); color:white; flex: 1;" onclick="eliminarProductoDesdeEdicion()">🗑️ ELIMINAR</button>
             <button class="btn-final" style="background:#eee; color:#333; flex: 1;" onclick="cerrarModales()">CANCELAR</button>
             <button class="btn-final" style="background:var(--p); flex: 1;" onclick="guardarEdicion()">💾 GUARDAR CAMBIOS</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Alta de Nuevo Producto (Diseño Nativo Exacto) -->
+<div id="modalNuevoProductoManual" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.5); z-index: 99999; align-items: center; justify-content: center; font-family: Arial, sans-serif;">
+    
+    <!-- Contenedor Principal con la franja azul superior -->
+    <div style="background: #fff; width: 95%; max-width: 650px; border-radius: 8px; border-top: 5px solid #007bff; box-shadow: 0 10px 25px rgba(0,0,0,0.2); display: flex; flex-direction: column; overflow: hidden;">
+        
+        <!-- Encabezado -->
+        <div style="padding: 15px 20px; display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="margin: 0; color: #007bff; font-size: 18px; font-weight: bold; display: flex; align-items: center; gap: 8px;">
+                ➕ Nuevo Producto
+            </h2>
+            <button type="button" onclick="cerrarModalNuevoProducto()" style="background: transparent; border: none; font-size: 24px; cursor: pointer; color: #6c757d; line-height: 1;">&times;</button>
+        </div>
+        
+        <!-- Formulario (Recuadro Interno) -->
+        <div style="padding: 0 20px 20px 20px;">
+            <form id="formNuevoProducto" onsubmit="guardarNuevoProductoManual(event)" style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; display: flex; flex-direction: column; gap: 15px;">
+                
+                <!-- Fila 1 -->
+                <div style="display: flex; gap: 15px;">
+                    <div style="flex: 1.5;">
+                        <label style="color: #007bff; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">CÓDIGO</label>
+                        <input type="text" id="np_codigo" required autocomplete="off" style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="color: #007bff; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">DEPARTAMENTO</label>
+                        <input type="text" id="np_depto" value="General" autocomplete="off" style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
+                    </div>
+                </div>
+
+                <!-- Fila 2 -->
+                <div style="display: flex; gap: 15px;">
+                    <div style="flex: 1.5;">
+                        <label style="color: #007bff; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">NOMBRE</label>
+                        <input type="text" id="np_nombre" required autocomplete="off" style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="color: #007bff; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">TIPO</label>
+                        <select id="np_tipo" style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none; background: white;">
+                            <option value="PIEZA">PIEZA</option>
+                            <option value="granel">GRANEL</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Fila 3 -->
+                <div style="display: flex; gap: 15px;">
+                    <div style="flex: 1;">
+                        <label style="color: #007bff; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">COSTO BASE</label>
+                        <input type="number" step="0.01" id="np_costo" value="0" style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="color: #007bff; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">IVA/ISR %</label>
+                        <input type="number" step="0.01" id="np_iva" value="0" style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="color: #20c997; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">% GANANCIA</label>
+                        <input type="number" step="0.01" id="np_ganancia" value="0" placeholder="Automático" style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
+                    </div>
+                </div>
+
+                <!-- Fila 4 -->
+                <div style="display: flex; gap: 15px;">
+                    <div style="flex: 1;">
+                        <label style="color: #007bff; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">P. VENTA</label>
+                        <input type="number" step="0.01" id="np_venta" required style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="color: #007bff; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">P. MAYO</label>
+                        <input type="number" step="0.01" id="np_pm" style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="color: #007bff; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">MIN MAYO</label>
+                        <input type="number" step="any" id="np_md" value="0" style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
+                    </div>
+                </div>
+
+                <!-- Fila 5 -->
+                <div style="display: flex; gap: 15px;">
+                    <div style="flex: 1;">
+                        <label style="color: #007bff; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">P. MAYO2</label>
+                        <input type="number" step="0.01" id="np_pm2" value="0" style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="color: #007bff; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">MIN MAYO2</label>
+                        <input type="number" step="any" id="np_md2" value="0" style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
+                    </div>
+                    <div style="flex: 1;">
+                        <!-- Espacio vacío para alinear la cuadrícula -->
+                    </div>
+                </div>
+
+                <!-- Fila 6 -->
+                <div style="display: flex; gap: 15px;">
+                    <div style="flex: 2;">
+                        <label style="color: #007bff; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">👑 CÓDIGO MAESTRO (JEFE)</label>
+                        <input type="text" id="np_jefe" placeholder="Ej. 12345 (Vacío si este es el Jefe)" style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="color: #dc3545; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">STOCK INICIAL</label>
+                        <input type="number" step="any" id="np_stock" value="0" style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none; background-color: #f8f9fa;">
+                    </div>
+                </div>
+            </form>
+
+            <!-- Botones de Acción Estilo Nativo -->
+            <div style="display: flex; justify-content: flex-end; gap: 15px; margin-top: 15px;">
+                <button type="button" onclick="cerrarModalNuevoProducto()" style="background: #f1f5f9; color: #334155; border: none; padding: 12px 25px; border-radius: 6px; font-weight: bold; font-size: 14px; cursor: pointer; flex: 1;">
+                    CANCELAR
+                </button>
+                <button type="button" onclick="document.getElementById('formNuevoProducto').requestSubmit()" style="background: #007bff; color: white; border: none; padding: 12px 25px; border-radius: 6px; font-weight: bold; font-size: 14px; cursor: pointer; flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    💾 GUARDAR CAMBIOS
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -2275,8 +2440,53 @@ body {
     </div>
 </div>
 </div>
+<!-- Modal: Configuración de Catálogo Base (Intuitivo) -->
+<div id="modalCatalogoBase" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.5); z-index: 99999; align-items: center; justify-content: center; font-family: Arial, sans-serif;">
+    <div style="background: #fff; width: 95%; max-width: 500px; border-radius: 10px; border-top: 5px solid #8b5cf6; box-shadow: 0 10px 25px rgba(0,0,0,0.2); display: flex; flex-direction: column; overflow: hidden;">
+        
+        <!-- Encabezado -->
+        <div style="padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+            <h2 style="margin: 0; color: #6d28d9; font-size: 18px; font-weight: bold; display: flex; align-items: center; gap: 8px;">
+                📦 Gestor de Catálogo Base
+            </h2>
+            <button type="button" onclick="cerrarModalCatalogo()" style="background: transparent; border: none; font-size: 24px; cursor: pointer; color: #6c757d; line-height: 1;">&times;</button>
+        </div>
+        
+        <!-- Contenido -->
+        <div style="padding: 20px; display: flex; flex-direction: column; gap: 20px;">
+            <p style="margin: 0; color: #475569; font-size: 14px; line-height: 1.5;">
+                Elige cómo deseas manejar tu lista de productos. Estas acciones requieren permisos de administrador.
+            </p>
+            
+            <!-- Campo de PIN (Se oculta automáticamente si ya eres Admin) -->
+            <div id="bloquePinCatalogo" style="display: none;">
+                <label style="color: #334155; font-size: 11px; font-weight: bold; text-transform: uppercase;">🔒 PIN de Administrador requerido</label>
+                <input type="password" id="pin_admin_catalogo" placeholder="****" autocomplete="off" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 18px; margin-top: 5px; text-align: center; letter-spacing: 8px; box-sizing: border-box; outline: none;">
+            </div>
+
+            <!-- Botones de Acción (Tarjetas) -->
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <button type="button" onclick="ejecutarAccionCatalogo('cargar')" style="background: #f0fdf4; border: 1px solid #22c55e; border-radius: 8px; padding: 15px; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 15px;">
+                    <div style="font-size: 26px;">📥</div>
+                    <div>
+                        <h4 style="margin: 0; color: #16a34a; font-size: 15px; font-weight: bold;">Cargar Catálogo Base</h4>
+                        <p style="margin: 4px 0 0 0; color: #15803d; font-size: 12px;">Incorpora miles de productos con stock 0 listos para usar y vender.</p>
+                    </div>
+                </button>
+
+                <button type="button" onclick="ejecutarAccionCatalogo('limpiar')" style="background: #fff1f2; border: 1px solid #f43f5e; border-radius: 8px; padding: 15px; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 15px;">
+                    <div style="font-size: 26px;">🧹</div>
+                    <div>
+                        <h4 style="margin: 0; color: #e11d48; font-size: 15px; font-weight: bold;">Limpiar Catálogo Base</h4>
+                        <p style="margin: 4px 0 0 0; color: #be123c; font-size: 12px;">Retira productos en stock 0. Mantén únicamente tu inventario real.</p>
+                    </div>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-<script src="app.js?v=77"></script>
+<script src="app.js?v=88"></script>
 </body>
 </html>
