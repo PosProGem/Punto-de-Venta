@@ -1950,12 +1950,12 @@ window.changeTab = function(evt, tabName) {
         console.error("❌ Error al cambiar de pestaña:", error);
     }
 };
-// ====================================================================
-// 📱 CONTROL DE ACCESO AL PORTAL DE RECARGAS
-// ====================================================================
 
 // ====================================================================
-// 📱 CONTROL DE ACCESO AL PORTAL DE RECARGAS
+// 📱 CONTROL DE ACCESO AL PORTAL DE RECARGAS (CENTRADOR Y DISEÑO BLINDADO)
+// ====================================================================
+// ====================================================================
+// 📱 CONTROL DE ACCESO AL PORTAL DE RECARGAS (INYECCIÓN SEGURA)
 // ====================================================================
 
 async function verificarAccesoRecargas() {
@@ -1966,27 +1966,74 @@ async function verificarAccesoRecargas() {
     let inputs = ['req_nombre', 'req_whatsapp', 'req_correo', 'req_direccion'].map(id => document.getElementById(id));
     let btnSubmit = document.querySelector("button[onclick='enviarSolicitudRecargas()']");
 
+    if (portal) portal.style.display = 'none'; 
+    if (bloqueo) bloqueo.style.display = 'block'; 
+
     if (typeof pb !== 'undefined' && navigator.onLine) {
         try {
             let configRecargas = await pb.collection('config').getFirstListItem(`doc_id="acceso_recargas" && negocio_id="${negocioActual}"`, { requestKey: null });
             
             if (configRecargas && configRecargas.data) {
                 if (configRecargas.data.aprobado === true) {
-                    if (bloqueo) bloqueo.style.display = 'none';
-                    if (portal) portal.style.display = 'flex';
+                    if (bloqueo) {
+                        bloqueo.style.display = 'none';
+                        bloqueo.innerHTML = ''; 
+                    }
+                    if (portal) {
+                        portal.style.display = 'flex';
+                        portal.style.position = 'relative'; // Necesario para el menú flotante
+                        
+                        if (portal.innerHTML.trim() === "") {
+                            portal.innerHTML = `
+                                <style>
+                                    #caja_alerta_recargas {
+                                        position: absolute; top: 0; left: 0; width: 100%;
+                                        background: rgba(255, 255, 255, 0.95); padding: 10px; text-align: center;
+                                        border-bottom: 2px solid #ddd; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                                        transition: transform 0.4s ease, opacity 0.4s ease;
+                                        z-index: 100; transform: translateY(0); opacity: 1;
+                                    }
+                                    /* Clase que esconde el banner hacia arriba */
+                                    #caja_alerta_recargas.oculto {
+                                        transform: translateY(-100%); opacity: 0; pointer-events: none;
+                                    }
+                                    /* Zona invisible de 30px arriba para detectar el mouse */
+                                    #zona_magica_top {
+                                        position: absolute; top: 0; left: 0; width: 100%; height: 35px; z-index: 99;
+                                    }
+                                </style>
+                                
+                                <!-- Detector de mouse -->
+                                <div id="zona_magica_top" onmouseenter="document.getElementById('caja_alerta_recargas').classList.remove('oculto')"></div>
+                                
+                                <!-- Banner flotante -->
+                                <div id="caja_alerta_recargas" onmouseleave="document.getElementById('caja_alerta_recargas').classList.add('oculto')">
+                                    <span style="color:#666; font-size: 13px; margin-right: 15px;">¿La página se ve en blanco o bloqueada?</span>
+                                    <a href="https://www.multiprepaid.mx/web/login/menuprin.aspx" target="_blank" style="background:#2563eb; color:white; padding: 6px 12px; border-radius: 6px; text-decoration:none; font-weight:bold; font-size: 12px; display: inline-block;">🔗 ABRIR PORTAL EN NUEVA PESTAÑA</a>
+                                </div>
+                                
+                                <iframe src="https://www.multiprepaid.mx/web/login/menuprin.aspx" style="width:100%; height:100%; flex-grow:1; border:none; background: #fff; box-sizing: border-box;"></iframe>
+                            `;
+                            
+                            // Auto-ocultar el banner después de 5 segundos
+                            setTimeout(() => {
+                                let caja = document.getElementById('caja_alerta_recargas');
+                                if (caja) caja.classList.add('oculto');
+                            }, 5000);
+                        }
+                    }
                 } else {
                     if (msgPendiente) msgPendiente.style.display = 'block';
                     if (btnSubmit) btnSubmit.style.display = 'none';
                     inputs.forEach(input => { if(input) { input.disabled = true; input.style.background = '#f1f5f9'; } });
                 }
             }
-        } catch(e) {}
+        } catch(e) {
+            console.log("No hay solicitud previa.");
+        }
     }
 }
-// 1er Anclaje obligatorio
 window.verificarAccesoRecargas = verificarAccesoRecargas;
-
-
 async function enviarSolicitudRecargas() {
     let nombre = document.getElementById('req_nombre').value.trim();
     let whatsapp = document.getElementById('req_whatsapp').value.trim();
@@ -2100,6 +2147,46 @@ function initLoginSelect() {
 }
 
 window.intentarLogin = async function() {
+    let selectElement = document.getElementById('login_sucursal');
+    let sucSelect = selectElement ? selectElement.value : null;
+    let sucGuardada = localStorage.getItem('pos_sucursal_actual') || localStorage.getItem('pos_sucursal_v1');
+    let sucursalAValidar = sucSelect || sucGuardada;
+
+    // 🛡️ 1. AUTO-SELECCIÓN INTELIGENTE DE SUCURSAL REAL
+    if (!sucursalAValidar || sucursalAValidar === "Matriz" || sucursalAValidar === "null" || sucursalAValidar.trim() === "") {
+        
+        let sucursalReal = "";
+        
+        // 1ro: Buscar la primera sucursal válida que ya esté cargada en el selector HTML
+        if (selectElement && selectElement.options.length > 0) {
+            for (let i = 0; i < selectElement.options.length; i++) {
+                let val = selectElement.options[i].value;
+                if (val && val !== "Matriz" && val !== "null" && val.trim() !== "") {
+                    sucursalReal = val;
+                    break;
+                }
+            }
+        }
+
+        // 2do: Si por alguna razón el selector falló, intentamos usar el nombre del negocio (SaaS)
+        if (!sucursalReal) {
+            let nombreSaaS = (typeof pb !== 'undefined' && pb.authStore?.model?.name) ? pb.authStore.model.name : null;
+            sucursalReal = nombreSaaS ? nombreSaaS : "Sucursal Principal";
+        }
+
+        sucursalAValidar = sucursalReal;
+        
+        // Guardamos la sucursal válida para que quede fija en el sistema y no vuelva a fallar
+        localStorage.setItem('pos_sucursal_v1', sucursalAValidar);
+        localStorage.setItem('pos_sucursal_actual', sucursalAValidar);
+        if (selectElement) selectElement.value = sucursalAValidar;
+
+        alert(`⚠️ Se ha seleccionado automáticamente tu sucursal: "${sucursalAValidar}".\nSi tienes más de una, puedes cambiarla en el menú de la esquina superior derecha.`);
+    }
+
+    // Asignación global obligatoria
+    window.sucursalActual = sucursalAValidar;
+
     let u = document.getElementById('login_user').value; 
     let p = document.getElementById('login_pin').value;
     
@@ -4352,9 +4439,11 @@ nombreVentaActual = "";
     } catch(err) { 
         console.error("Error en Venta:", err); 
     } finally {
+        window.apagarMayoreo();
         setTimeout(() => { window.ventaEnProceso = false; }, 1000); 
     }
 };
+
 // Granel
 function calcGranel(p) { 
     if(p) document.getElementById('g_total_m').value = (document.getElementById('g_cant').value * (tempGranel.pv||1)).toFixed(2); 
@@ -4524,9 +4613,6 @@ async function preguntarPausar() {
     }, 150);
 }
 
-// =========================================================
-// 2. RETOMAR VENTA (CON ENVOLTORIO FANTASMA)
-// =========================================================
 // =========================================================
 // 2. RETOMAR VENTA (SIN BORRARLA PREMATURAMENTE)
 // =========================================================
@@ -5345,7 +5431,7 @@ function renderC() {
             <!-- 7. Acciones (12%) -->
             <td style="padding: 8px 4px; text-align: center; vertical-align: middle; white-space: nowrap;">
                 <button title="Comprar por Caja" style="background: #0ea5e9; color: white; border: none; padding: 6px 8px; border-radius: 5px; cursor: pointer; font-size: 13px;" onclick="abrirCalculadoraCaja(${i})">📦</button>
-                <button title="Eliminar" style="background: #ef4444; color: white; border: none; padding: 6px 9px; border-radius: 5px; cursor: pointer; font-size: 13px; margin-left: 2px;" onclick="carC.splice(${i},1); focusCompraIndex = Math.min(focusCompraIndex, carC.length - 1); renderC()">✕</button>
+                <button title="Eliminar" style="background: #ef4444; color: white; border: none; padding: 6px 9px; border-radius: 5px; cursor: pointer; font-size: 13px; margin-left: 2px;" onclick="window.eliminarItemC(${i})">✕</button>
             </td>
         </tr>`;
     }).join('');
@@ -5967,8 +6053,12 @@ window.procesarGuardadoEInventario = async function(totalCompra, metodoNombre, m
         if (checkInventario && checkInventario.checked) checkInventario.checked = false; 
 
     } finally {
+        // ✨ INYECTADO AQUÍ: Borra la compra pausada al finalizar
+        window.eliminarCompraPausadaActual();
+
         // 🔓 2. LIBERAR ESCUDO: Se ejecuta siempre al final, sin importar si hubo errores
         window._guardandoCompraActiva = false;
+        
     }
 };
 
@@ -6074,33 +6164,174 @@ window.guardarAjusteStock = async function() {
     }
 };
 
-function pausarCompraActual() {
-    if(carC.length === 0) return alert("❌ Lista vacía.");
-    let prov = document.getElementById('c_proveedor') ? document.getElementById('c_proveedor').value : '';
-    let idCompraPausada = Date.now(); 
-    let nuevaPausada = { id: idCompraPausada, hora: new Date().toLocaleTimeString(), proveedor: prov, carrito: [...carC], sucursal: sucursalActual };
-    comprasPausadas.push(nuevaPausada); localStorage.setItem('pos_compras_pausadas', JSON.stringify(comprasPausadas));
-    if (typeof db !== 'undefined') db.collection("compras_pausadas").doc(String(idCompraPausada)).set(nuevaPausada);
-    carC = []; renderC(); if(document.getElementById('c_proveedor')) document.getElementById('c_proveedor').value = ''; actualizarBadgeComprasPausadas();
-}
-
-function abrirComprasPausadas() {
-    let pausadasLocal = comprasPausadas.filter(cp => !cp.sucursal || cp.sucursal === sucursalActual);
-    if (pausadasLocal.length === 0) return alert("No tienes compras en pausa.");
-    let opciones = "📋 COMPRAS EN PAUSA:\n\n";
-    pausadasLocal.forEach((cp, index) => { let total = cp.carrito.reduce((acc, x) => acc + ((x.can * x.cos) * (1 - (x.desc||0)/100)), 0); opciones += `[ ${index + 1} ] 🕒 ${cp.hora} - Prov: ${cp.proveedor || 'Sin nombre'} - $${total.toFixed(2)} (${cp.carrito.length} items)\n`; });
-    let seleccion = prompt(opciones + "\n👉 Escribe el NÚMERO a reanudar:"); if (!seleccion) return;
-    let idx = parseInt(seleccion) - 1; if (isNaN(idx) || idx < 0 || idx >= pausadasLocal.length) return alert("❌ Inválido.");
-    if (carC.length > 0 && !confirm("⚠️ Tienes productos en lista actual. Se mezclarán. ¿Continuar?")) return;
+// =========================================================
+// 1. PAUSAR COMPRA (CON ENVOLTORIO "DATA" PARA POCKETBASE)
+// =========================================================
+async function pausarCompraActual() {
+    if (!carC || carC.length === 0) return alert("❌ Lista vacía.");
     
-    let compraRestaurada = pausadasLocal[idx]; carC = carC.concat(compraRestaurada.carrito);
-    if(document.getElementById('c_proveedor') && compraRestaurada.proveedor) document.getElementById('c_proveedor').value = compraRestaurada.proveedor;
-    if (compraRestaurada.id && typeof db !== 'undefined') db.collection("compras_pausadas").doc(String(compraRestaurada.id)).delete();
-    let indexOriginal = comprasPausadas.findIndex(c => c.id === compraRestaurada.id);
-    if(indexOriginal > -1) { comprasPausadas.splice(indexOriginal, 1); localStorage.setItem('pos_compras_pausadas', JSON.stringify(comprasPausadas)); }
-    actualizarBadgeComprasPausadas(); renderC();
+    let prov = document.getElementById('c_proveedor') ? document.getElementById('c_proveedor').value : '';
+    let n = prompt("Nombre o Referencia de la compra pausada:", prov || "Compra " + (comprasPausadas.length + 1));
+    if (!n) return;
+
+    let idUnico = window.idCompraPausadaActual ? String(window.idCompraPausadaActual) : generarIdPB();
+    let horaPausa = new Date().toLocaleTimeString('es-MX', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    // Este es el objeto que usa tu navegador localmente
+    let nuevaPausada = { 
+        id: idUnico, 
+        nom: n.trim(), 
+        hora: horaPausa,
+        proveedor: prov,
+        carrito: [...carC], 
+        sucursal: typeof sucursalActual !== 'undefined' ? sucursalActual : "Matriz"
+    };
+
+    // Actualización local
+    let idx = comprasPausadas.findIndex(p => p.id === idUnico);
+    if(idx !== -1) {
+        comprasPausadas[idx] = nuevaPausada; 
+    } else {
+        comprasPausadas.push(nuevaPausada); 
+    }
+    localStorage.setItem('pos_compras_pausadas', JSON.stringify(comprasPausadas));
+
+    // 📦 EL PARCHE CLAVE: El envoltorio que exige tu colección de PocketBase
+    let payloadNube = {
+        id: idUnico,
+        doc_id: idUnico,
+        data: nuevaPausada
+    };
+
+    // ☁️ UPSERT A LA NUBE
+    if (typeof pb !== 'undefined' && navigator.onLine) {
+        try {
+            await pb.collection("compras_pausadas").update(idUnico, payloadNube, { requestKey: null });
+        } catch (err) {
+            pb.collection("compras_pausadas").create(payloadNube, { requestKey: null }).catch(e => console.warn("Falla nube:", e));
+        }
+    }
+
+    carC = []; 
+    window.idCompraPausadaActual = null;
+    
+    if(document.getElementById('c_proveedor')) document.getElementById('c_proveedor').value = ''; 
+    renderC(); 
+    if (typeof actualizarBadgeComprasPausadas === 'function') actualizarBadgeComprasPausadas();
 }
 
+// =========================================================
+// 2. ABRIR / RETOMAR COMPRA (SIN BORRARLA PREMATURAMENTE)
+// =========================================================
+// =========================================================
+// 📋 ABRIR Y RETOMAR COMPRAS PAUSADAS (VÍA MODAL HTML)
+// =========================================================
+
+window.abrirComprasPausadas = function() {
+    let pausadasLocal = comprasPausadas.filter(cp => !cp.sucursal || cp.sucursal === sucursalActual);
+    let contenedor = document.getElementById('listaComprasPausadas');
+    let modal = document.getElementById('modalComprasPausadas');
+    
+    if (!contenedor || !modal) return;
+    contenedor.innerHTML = ''; // Limpiamos la lista anterior
+    
+    if (pausadasLocal.length === 0) {
+        contenedor.innerHTML = '<p style="text-align:center; color:#666; margin:20px 0;">No tienes compras en pausa actualmente.</p>';
+        modal.style.display = 'flex';
+        return;
+    }
+    
+    // Dibujamos cada compra pausada como una tarjeta
+    pausadasLocal.forEach(cp => {
+        let total = cp.carrito.reduce((acc, x) => acc + ((x.can * x.cos) * (1 - (x.desc||0)/100)), 0); 
+        let nombreDisplay = cp.nom || cp.proveedor || 'Sin referencia';
+        
+        let div = document.createElement('div');
+        div.style.cssText = "background:#f8f9fa; border:1px solid #dee2e6; padding:12px; border-radius:6px; display:flex; justify-content:space-between; align-items:center;";
+        
+        div.innerHTML = `
+            <div>
+                <strong style="color:#0056b3; font-size:15px;">${nombreDisplay}</strong><br>
+                <span style="font-size:13px; color:#555;">🕒 ${cp.hora} | 📦 ${cp.carrito.length} items</span>
+            </div>
+            <div style="text-align:right;">
+                <strong style="color:#28a745; font-size:16px;">$${total.toFixed(2)}</strong><br>
+                <button onclick="window.retomarCompra('${cp.id}')" style="background:#17a2b8; color:white; border:none; padding:6px 12px; border-radius:4px; font-weight:bold; cursor:pointer; margin-top:5px; font-size:12px; box-shadow:0 2px 4px rgba(0,0,0,0.1);">▶ Reanudar</button>
+            </div>
+        `;
+        contenedor.appendChild(div);
+    });
+    
+    modal.style.display = 'flex';
+};
+
+window.retomarCompra = function(idBuscar) {
+    let idStr = String(idBuscar);
+    let idx = comprasPausadas.findIndex(p => String(p.id) === idStr);
+    if (idx === -1) return;
+    
+    if (carC.length > 0 && !confirm("⚠️ Tienes productos en la lista actual. Se borrarán y reemplazarán por la compra pausada. ¿Continuar?")) return;
+    
+    let compraRestaurada = comprasPausadas[idx]; 
+    
+    // Cargamos los datos al sistema
+    carC = [...compraRestaurada.carrito];
+    if (document.getElementById('c_proveedor') && compraRestaurada.proveedor) {
+        document.getElementById('c_proveedor').value = compraRestaurada.proveedor;
+    }
+    
+    // Retenemos el ID en memoria
+    window.idCompraPausadaActual = compraRestaurada.id;
+    
+    if (typeof renderC === 'function') renderC();
+    if (typeof actualizarBadgeComprasPausadas === 'function') actualizarBadgeComprasPausadas();
+    
+    // Cerramos el modal automáticamente
+    let modal = document.getElementById('modalComprasPausadas');
+    if (modal) modal.style.display = 'none';
+};
+// =========================================================
+// 3. ELIMINAR COMPRA PAUSADA AL VACIAR O FINALIZAR
+// =========================================================
+window.eliminarCompraPausadaActual = async function() {
+    // Si no estábamos trabajando sobre una compra pausada, no hacemos nada
+    if (!window.idCompraPausadaActual) return; 
+
+    let idTarget = String(window.idCompraPausadaActual);
+
+    // 1. Borrar de la memoria local
+    let i = comprasPausadas.findIndex(p => String(p.id) === idTarget || String(p.doc_id) === idTarget);
+    if (i !== -1) {
+        comprasPausadas.splice(i, 1);
+        localStorage.setItem("pos_compras_pausadas", JSON.stringify(comprasPausadas));
+    }
+
+    // 2. Borrar de la nube (PocketBase) de forma definitiva
+    if (typeof pb !== 'undefined' && navigator.onLine) {
+        try {
+            // Reemplazamos temporalmente con datos fantasma antes de borrar para forzar la sincronización de otros dispositivos
+            let payloadFantasma = { data: { nom: 'FANTASMA', carrito: [] } };
+            await pb.collection("compras_pausadas").update(idTarget, payloadFantasma, { requestKey: null });
+            await pb.collection("compras_pausadas").delete(idTarget, { requestKey: null });
+        } catch (err) {
+            pb.collection("compras_pausadas").delete(idTarget, { requestKey: null }).catch(() => {});
+        }
+    }
+
+    // 3. Reiniciar la variable y actualizar el contador visual
+    window.idCompraPausadaActual = null;
+    if (typeof actualizarBadgeComprasPausadas === 'function') {
+        actualizarBadgeComprasPausadas();
+    }
+};
+function cancelarCompra() {
+    carC = [];
+    if(document.getElementById('c_proveedor')) document.getElementById('c_proveedor').value = '';
+    renderC();
+    
+    // ✨ INYECTAR AQUÍ:
+    window.eliminarCompraPausadaActual(); 
+}
 // ====================================================================
 // === CALCULADORA DE COMPRA POR CAJA / LOTE 📦 ===
 // ====================================================================
@@ -14904,37 +15135,46 @@ setTimeout(() => {
 window.registrarNuevoNegocio = async function() {
     let btn = document.getElementById('btn_crear_cuenta');
     
-    // 👤 NUEVO CAMPO: Obtenemos el nombre de la persona
     let nombrePersonal = document.getElementById('reg_nombre') ? document.getElementById('reg_nombre').value.trim() : "Admin";
-    
     let negocio = document.getElementById('reg_negocio').value.trim();
     let email = document.getElementById('reg_correo').value.trim().toLowerCase();
     let pass = document.getElementById('reg_pass').value;
     let quiereCatalogo = document.getElementById('reg_cargar_catalogo') ? document.getElementById('reg_cargar_catalogo').checked : false;
 
-    // Actualizamos la validación para que también exija el Nombre Personal
     if (!nombrePersonal || !negocio || !email || !pass) return alert("⚠️ Por favor llena todos los campos.");
     if (pass.length < 8) return alert("⚠️ La contraseña debe tener al menos 8 caracteres.");
     if (typeof pb === 'undefined') return alert("❌ Error de conexión.");
 
-    // 🛡️ VALIDACIÓN CAPTCHA ANTI-BOTS
+    // 🛡️ 1. CAPTCHA BLINDADO: Si es el primer intento y no hay código generado, asume el 8 del HTML
     let inputCaptcha = document.getElementById('reg_captcha');
-    if (inputCaptcha && parseInt(inputCaptcha.value) !== window.captchaCorrecto) {
-        if (typeof prepararCaptcha === 'function') prepararCaptcha();
-        return alert("🤖 Respuesta de seguridad incorrecta. Por favor, resuelve la suma para comprobar que eres humano.");
+    if (inputCaptcha) {
+        let valorIngresado = parseInt(inputCaptcha.value.trim(), 10);
+        
+        // Si window.captchaCorrecto está vacío, la respuesta correcta obligatoria es 8 (5+3)
+        let valorCorrecto = (typeof window.captchaCorrecto !== 'undefined' && !isNaN(parseInt(window.captchaCorrecto, 10))) 
+                            ? parseInt(window.captchaCorrecto, 10) 
+                            : 8;
+
+        if (isNaN(valorIngresado) || valorIngresado !== valorCorrecto) {
+            if (typeof prepararCaptcha === 'function') prepararCaptcha();
+            return alert("🤖 Respuesta de seguridad incorrecta. Por favor, resuelve la nueva suma matemática.");
+        }
     }
 
     btn.disabled = true;
     btn.innerText = "Creando tu sistema... ⏳";
     
-    // ... (aquí continúa tu bloque try { ... } intacto)
-
+    // 🧹 2. PURGA DE MEMORIA: Borramos los rastros de "Matriz" de pruebas anteriores
+    localStorage.removeItem('pos_sucursal_v1');
+    localStorage.removeItem('pos_sucursal_actual');
+    localStorage.removeItem('pos_usuarios_v1');
+    window.sucursalActual = null;
+    
     try {
         let sufijoUnico = Date.now().toString().slice(-6);
         let nombreLimpio = negocio.toLowerCase().replace(/[^a-z0-9]/g, '');
         let nuevoNegocioId = `neg_${nombreLimpio}_${sufijoUnico}`;
-
-        // 📅 Formateo exacto de fecha para PocketBase (YYYY-MM-DD HH:mm:ss.SSSZ)
+            
         let fechaActual = new Date();
         fechaActual.setDate(fechaActual.getDate() + 15);
         let fechaVencimiento = fechaActual.toISOString().replace('T', ' ');
@@ -14945,39 +15185,51 @@ window.registrarNuevoNegocio = async function() {
             "passwordConfirm": pass,
             "name": negocio,
             "negocio_id": nuevoNegocioId,
-            "vencimiento": fechaVencimiento, // 👈 Enviamos la fecha formateada
+            "vencimiento": fechaVencimiento, 
             "nombrePersonal": nombrePersonal,
             "emailVisibility": true
         };
+        let aceptoTerminos = document.getElementById('reg_aceptar_terminos');
+if (aceptoTerminos && !aceptoTerminos.checked) {
+    return alert("⚠️ Debes aceptar los Términos y Condiciones para continuar.");
+}
 
+        // ☁️ CREAR USUARIO EN POCKETBASE
         await pb.collection('users').create(datosUsuario, { requestKey: null });
-        // 📧 ENVIAR CORREO DE VERIFICACIÓN AUTOMÁTICO
-        try {
-            await pb.collection('users').requestVerification(email);
-        } catch(errMail) {
-            console.warn("No se pudo enviar el correo de verificación. ¿Configuraste el SMTP en PocketBase?", errMail);
-        }
-        if (typeof conectarDBLocal === 'function') conectarDBLocal();
+        try { await pb.collection('users').requestVerification(email); } catch(errMail) {}
 
-        // 🛑 APAGAMOS EL RADAR PARA EVITAR EL CHOQUE DE CREDENCIALES (ERROR 403)
         if (typeof pb !== 'undefined' && pb.realtime) pb.realtime.disconnect();
-
-        // Iniciamos sesión con la cuenta recién creada
         await pb.collection('users').authWithPassword(email, pass, { requestKey: null });
         localStorage.setItem('pos_negocio_id_saas', pb.authStore.model.negocio_id);
 
-        // 🌟 CORRECCIÓN 1: Crear Admin correctamente empaquetado en doc_id y data
+        let sucursalInicial = negocio || "Principal";
+
+        // 🏢 CREAMOS LA SUCURSAL OFICIAL (Obligamos a la base de datos a reconocerla)
+        try {
+            await pb.collection('sucursales').create({
+                nombre: sucursalInicial,
+                negocio_id: nuevoNegocioId,
+                activa: true
+            }, { requestKey: null });
+        } catch (eSuc) { console.warn("Aviso crear sucursal:", eSuc); }
+
+        // 🔑 CREAR ADMIN CON PIN Y SUCURSAL REAL
         let datosAdmin = { 
             usuario: "Admin", 
             nombre: "Admin", 
-            pin: "12345", 
-            sucursal: "Matriz", 
+            pin: pass, 
+            sucursal: sucursalInicial, 
             tabs: ["v-tab", "c-tab", "prov-tab", "k-tab", "i-tab", "cli-tab", "pro-tab", "rec-tab", "r-tab", "u-tab", "kardex-tab", "audi-tab"], 
             permisos: ["inv_ciego", "auditoria"] 
         };
 
         window.usuariosData = { "Admin": datosAdmin };
-        try { localStorage.setItem("pos_usuarios_v1", JSON.stringify(window.usuariosData)); } catch(e){}
+        try { 
+            localStorage.setItem("pos_usuarios_v1", JSON.stringify(window.usuariosData)); 
+            localStorage.setItem('pos_sucursal_v1', sucursalInicial);
+            localStorage.setItem('pos_sucursal_actual', sucursalInicial);
+            window.sucursalActual = sucursalInicial; // Forzamos la variable global
+        } catch(e){}
 
         try {
             await pb.collection('usuarios').create({ 
@@ -14985,11 +15237,8 @@ window.registrarNuevoNegocio = async function() {
                 data: datosAdmin, 
                 negocio_id: nuevoNegocioId 
             }, { requestKey: null });
-        } catch(eCaj) {
-            console.warn("Aviso Admin:", eCaj);
-        }
+        } catch(eCaj) {}
 
-        // 💾 GUARDAR DECISIÓN DE CATÁLOGO (NUBE Y LOCAL)
         localStorage.setItem('pos_usa_catalogo_base', quiereCatalogo ? 'si' : 'no');
         try {
             await pb.collection('config').create({
@@ -14998,14 +15247,12 @@ window.registrarNuevoNegocio = async function() {
             }, { requestKey: null });
         } catch(ePref) {}
 
-        // 🌟 CORRECCIÓN 2: Limpieza obligatoria si NO quiere catálogo
         if (quiereCatalogo) {
             btn.innerText = "Instalando catálogo base... 📦";
             try {
                 let respuesta = await fetch('./catalogo_base.json?v=' + Date.now());
                 if (respuesta.ok) {
                     let catalogoSugerido = await respuesta.json();
-                    
                     Object.keys(catalogoSugerido).forEach(codigo => {
                         let prod = catalogoSugerido[codigo];
                         prod.negocio_id = nuevoNegocioId;
@@ -15017,41 +15264,30 @@ window.registrarNuevoNegocio = async function() {
                     try { localStorage.setItem("pos_precision_v6", JSON.stringify(window.inv)); } catch(e) {}
                     if (window.dbLocal && dbLocal.inventario) await dbLocal.inventario.bulkPut(Object.values(catalogoSugerido)).catch(() => {});
 
-                    // 🤖 DESPERTAMOS AL ROBOT INVISIBLE (4 SEGUNDOS DESPUÉS)
                     setTimeout(() => {
                         if (typeof subirCatalogoFondo === 'function') subirCatalogoFondo(catalogoSugerido);
                     }, 4000);
                 }
-            } catch (errCatalogo) { console.warn("No se pudo cargar el catálogo base:", errCatalogo); }
+            } catch (errCatalogo) {}
         } else {
-            // 🧹 SI ELIGE INICIAR EN BLANCO: Garantizamos que la memoria local se borre 
-            // para que no revivan productos de pruebas anteriores al dar F5
             window.inv = {};
             try { localStorage.setItem("pos_precision_v6", JSON.stringify({})); } catch(e) {}
             if (window.dbLocal && dbLocal.inventario) await dbLocal.inventario.clear();
         }
 
-        document.getElementById('modalRegistro').style.display = 'none';
-        
-        // 📧 ENVIAR CORREO DE VERIFICACIÓN AUTOMÁTICO
-        try {
-            await pb.collection('users').requestVerification(email);
-        } catch(errMail) {
-            console.warn("Aviso de correo:", errMail);
-        }
+        if (typeof conectarDBLocal === 'function') conectarDBLocal();
 
-        // 🛑 CIERRE DE PUERTA ESTRICTO: Deslogueamos al usuario inmediatamente después de armar su base de datos
+        document.getElementById('modalRegistro').style.display = 'none';
         pb.authStore.clear();
         
-        document.getElementById('modalRegistro').style.display = 'none';
+        alert(`✅ ¡Tu cuenta ha sido creada exitosamente, ${nombrePersonal}!\n\n🔒 Por seguridad, tu acceso está bloqueado temporalmente.\n\nTe hemos enviado un correo a ${email}. Debes abrirlo y hacer clic en el botón de "Verificar" antes de poder entrar a tu Punto de Venta.`);
 
-        // Alerta estricta exigiendo verificación
-        alert(`✅ ¡Tu cuenta ha sido creada exitosamente, ${nombrePersonal}!\n\n🔒 Por seguridad, tu acceso está bloqueado temporalmente.\n\nTe hemos enviado un correo a ${email}. Debes abrirlo y hacer clic en el botón de "Verificar" antes de poder entrar a tu Punto de Venta.\n\n(No olvides revisar tu carpeta de SPAM).`);
+        // 🔄 RECARGA OBLIGATORIA
+        window.location.reload();
 
     } catch (error) {
         console.error("Error al registrar:", error);
         alert("❌ Error al crear la cuenta. Verifica que el correo no esté en uso.");
-    } finally {
         btn.disabled = false;
         btn.innerText = "Comenzar ahora 🚀";
     }
@@ -15197,12 +15433,16 @@ window.revisarEstadoTerminalSaaS = async function() {
     
 };
 
-window.vincularTerminalSaaS = async function() {
+window.vincularTerminalSaaS = async function(event) { // 👈 Se agregó 'event'
     let em = document.getElementById('login_saas_email').value.trim().toLowerCase();
     let pa = document.getElementById('login_saas_pass').value;
+    
     if(!em || !pa) return alert("⚠️ Ingresa correo y contraseña de administrador.");
 
-    let btn = event.target;
+    // Evitamos errores si el 'event' no llega directo del HTML
+    let btn = event ? event.target : document.activeElement; 
+    let textoOriginal = btn.innerText || "VINCULAR TERMINAL 🔗";
+    
     btn.innerText = "Vinculando e Iniciando... ⏳";
     btn.disabled = true;
 
@@ -15210,6 +15450,7 @@ window.vincularTerminalSaaS = async function() {
         // 🛑 APAGAMOS EL RADAR PARA EVITAR EL CHOQUE DE CREDENCIALES
         if (typeof pb !== 'undefined' && pb.realtime) pb.realtime.disconnect();
 
+        // Autenticación en la Nube (SaaS)
         await pb.collection('users').authWithPassword(em, pa, { requestKey: null });
         if (typeof conectarDBLocal === 'function') conectarDBLocal();
         localStorage.setItem('pos_negocio_id_saas', pb.authStore.model.negocio_id);
@@ -15219,6 +15460,16 @@ window.vincularTerminalSaaS = async function() {
         
         await revisarEstadoTerminalSaaS();
         
+        // ✨ LA MAGIA AQUÍ: Sincronizamos forzosamente el PIN del Admin con la contraseña SaaS
+        if (typeof usuariosData !== 'undefined') {
+            if (!usuariosData["Admin"]) usuariosData["Admin"] = { nombre: "Admin", rol: "admin" };
+            usuariosData["Admin"].pin = pa; // 👈 Clona la contraseña al PIN
+            
+            // Guarda el cambio (Cambia 'pos_usuarios_v1' si tu localStorage de usuarios se llama diferente)
+            localStorage.setItem('pos_usuarios_v1', JSON.stringify(usuariosData)); 
+        }
+        
+        // Auto-Login de Cajero local
         let selectUser = document.getElementById('login_user');
         let inputPin = document.getElementById('login_pin');
         if(selectUser && inputPin) {
@@ -15229,7 +15480,7 @@ window.vincularTerminalSaaS = async function() {
         
     } catch(e) {
         alert("❌ Acceso denegado. Correo o contraseña incorrectos.");
-        btn.innerText = "VINCULAR TERMINAL 🔗";
+        btn.innerText = textoOriginal;
         btn.disabled = false;
     }
 };
@@ -15934,5 +16185,310 @@ window.ejecutarAccionCatalogo = async function(accion) {
         if (typeof renderI === 'function') renderI();
         if (typeof filtrarInventario === 'function') filtrarInventario();
         alert(`🧹 Limpieza completada. Se retiraron ${eliminados} productos vacíos.`);
+    }
+};
+// ====================================================================
+// 📍 ADVERTENCIA DE SUCURSAL: BLOQUEAR "MATRIZ"
+// ====================================================================
+
+// ====================================================================
+// 📍 ADVERTENCIA DE SUCURSAL: BLOQUEAR "MATRIZ" O SESIÓN VACÍA
+// ====================================================================
+
+async function verificarSucursalMatriz() {
+    let sucursalActual = localStorage.getItem('pos_sucursal_nombre');
+    
+    // Dejamos pasar SOLO si el usuario tiene una sucursal y NO es "matriz"
+    if (sucursalActual && sucursalActual.trim().toLowerCase() !== 'matriz') {
+        return; 
+    }
+
+    // Si llegamos aquí, es porque está en 'Matriz' o en null (primera vez/incógnito)
+    let negocioId = localStorage.getItem('pos_negocio_id_saas');
+    if (!negocioId || typeof pb === 'undefined') return;
+
+    try {
+        let listaSucursales = await pb.collection('sucursales').getFullList({
+            filter: `negocio_id="${negocioId}" && nombre != "Matriz"`,
+            requestKey: null
+        });
+
+        let select = document.getElementById('select_sucursal_onboarding');
+        if (!select) return;
+        
+        select.innerHTML = '<option value="">-- Elige tu sucursal real --</option>';
+        
+        if (listaSucursales.length > 0) {
+            listaSucursales.forEach(suc => {
+                select.innerHTML += `<option value="${suc.id}">${suc.nombre}</option>`;
+            });
+        } else {
+            select.innerHTML = '<option value="">⚠️ No tienes otras sucursales creadas</option>';
+        }
+
+        document.getElementById('modal_elegir_sucursal').style.display = 'flex';
+        
+    } catch (error) {
+        console.error("Error al cargar sucursales reales:", error);
+    }
+}
+
+function guardarSeleccionSucursal() {
+    let select = document.getElementById('select_sucursal_onboarding');
+    let sucursalId = select.value;
+    let sucursalNombre = select.options[select.selectedIndex].text;
+
+    if (!sucursalId) {
+        alert("⚠️ Por favor, selecciona una sucursal válida de la lista.");
+        return;
+    }
+
+    // Anclamos el dispositivo a la sucursal elegida y pisamos "Matriz"
+    localStorage.setItem('pos_sucursal_activa', sucursalId);
+    localStorage.setItem('pos_sucursal_nombre', sucursalNombre);
+
+    document.getElementById('modal_elegir_sucursal').style.display = 'none';
+    window.location.reload(); // Recarga limpia para aplicar la sucursal correcta a todo el sistema
+}
+window.guardarSeleccionSucursal = guardarSeleccionSucursal;
+// ====================================================================
+// 🖱️ HABILITAR SCROLL HORIZONTAL CON RUEDA DEL RATÓN EN PC
+// ====================================================================
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Seleccionamos ambos menús: los filtros y las pestañas superiores
+    const carruseles = document.querySelectorAll('.scroll-limpio, .tab.no-print');
+
+    carruseles.forEach(carrusel => {
+        carrusel.addEventListener('wheel', (evento) => {
+            // Previene que la página baje si el carrusel aún puede moverse a los lados
+            if (evento.deltaY !== 0) {
+                evento.preventDefault(); 
+                // Convierte el giro de la rueda en movimiento horizontal
+                carrusel.scrollLeft += evento.deltaY * 1.5; // El 1.5 acelera un poco el deslizamiento
+            }
+        }, { passive: false }); // 'passive: false' es necesario para que preventDefault funcione
+    });
+});
+// ====================================================================
+// 🖱️ MOTOR DEL CARRUSEL Y FLECHAS TÁCTILES
+// ====================================================================
+
+document.addEventListener('DOMContentLoaded', () => {
+    const wrappers = document.querySelectorAll('.carrusel-wrapper');
+    
+    wrappers.forEach(wrapper => {
+        const carrusel = wrapper.querySelector('.carrusel-movil');
+        const flechaIzq = wrapper.querySelector('.flecha-izq');
+        const flechaDer = wrapper.querySelector('.flecha-der');
+        
+        if(!carrusel || !flechaIzq || !flechaDer) return;
+
+        function evaluarFlechas() {
+            const maxScroll = carrusel.scrollWidth - carrusel.clientWidth;
+            // Si ya no estás en el tope izquierdo (con margen de 5px), activa flecha izquierda
+            flechaIzq.classList.toggle('puede-mover', carrusel.scrollLeft > 5);
+            // Si no has chocado con el tope derecho, activa flecha derecha
+            flechaDer.classList.toggle('puede-mover', carrusel.scrollLeft < maxScroll - 5);
+        }
+
+        // Detecta el toque en la pantalla
+        carrusel.addEventListener('touchstart', () => {
+            wrapper.classList.add('activo');
+            evaluarFlechas();
+            
+            // Oculta las flechas tras 3 segundos de inactividad
+            clearTimeout(wrapper.timerActivo);
+            wrapper.timerActivo = setTimeout(() => {
+                wrapper.classList.remove('activo');
+            }, 3000);
+        }, {passive: true});
+
+        carrusel.addEventListener('scroll', evaluarFlechas);
+        window.addEventListener('resize', evaluarFlechas);
+    });
+});
+
+window.moverCarrusel = function(boton, direccion) {
+    const carrusel = boton.parentElement.querySelector('.carrusel-movil');
+    carrusel.scrollBy({ left: direccion * 150, behavior: 'smooth' });
+};
+// ====================================================================
+// 🔄 APAGAR MAYOREO AUTOMÁTICAMENTE AL TERMINAR VENTA
+// ====================================================================
+window.apagarMayoreo = function() {
+    forceWholesale = false; 
+    let st = document.getElementById('v_mayoreo_status'); 
+    if(st) { 
+        st.innerText = "MAYOREO: DESACTIVADO"; 
+        st.style.background = "#444"; 
+        st.style.color = "#bbb"; 
+    }
+};
+// =========================================================
+// 🌐 SINCRONIZADOR AUTOMÁTICO DE RECONEXIÓN (OFFLINE -> NUBE)
+// =========================================================
+window.addEventListener('online', async () => {
+    console.log("🌐 Internet recuperado. Empujando pausas locales a la nube...");
+    if (typeof pb === 'undefined') return;
+
+    // 1. Sincronizar VENTAS pausadas hacia PocketBase
+    for (let p of pausadas) {
+        let idTarget = String(p.id);
+        try {
+            await pb.collection("pausadas").update(idTarget, { doc_id: idTarget, data: p }, { requestKey: null });
+        } catch (e) {
+            pb.collection("pausadas").create({ id: idTarget, doc_id: idTarget, data: p }, { requestKey: null }).catch(() => {});
+        }
+    }
+
+    // 2. Sincronizar COMPRAS pausadas hacia PocketBase
+    for (let cp of comprasPausadas) {
+        let idTarget = String(cp.id);
+        try {
+            await pb.collection("compras_pausadas").update(idTarget, { doc_id: idTarget, data: cp }, { requestKey: null });
+        } catch (e) {
+            pb.collection("compras_pausadas").create({ id: idTarget, doc_id: idTarget, data: cp }, { requestKey: null }).catch(() => {});
+        }
+    }
+});
+window.eliminarItemC = function(i) {
+    // 1. Borramos el artículo de la lista
+    carC.splice(i, 1);
+    
+    // 2. Ajustamos el foco visual (tu código original)
+    if (typeof focusCompraIndex !== 'undefined') {
+        focusCompraIndex = Math.max(0, Math.min(focusCompraIndex, carC.length - 1));
+    }
+
+    // ✨ 3. LA NUEVA MAGIA: Si el carrito queda en ceros, destruimos la pausa activa
+    if (carC.length === 0) {
+        if (typeof window.eliminarCompraPausadaActual === 'function') {
+            window.eliminarCompraPausadaActual();
+        }
+        let inputProv = document.getElementById('c_proveedor');
+        if (inputProv) inputProv.value = '';
+    }
+
+    // 4. Actualizamos la pantalla
+    if (typeof renderC === 'function') renderC();
+};
+window.abrirModalLegal = function(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    if (e && e.stopPropagation) e.stopPropagation();
+
+    const modal = document.getElementById('modalLegal');
+    if (!modal) return;
+
+    // Garantiza que el modal esté en el <body> para superar cualquier capa o modal previo
+    if (modal.parentElement !== document.body) {
+        document.body.appendChild(modal);
+    }
+
+    modal.style.position = 'fixed';
+    modal.style.inset = '0';
+    modal.style.width = '100vw';
+    modal.style.height = '100vh';
+    modal.style.zIndex = '2147483647';
+    modal.style.display = 'flex';
+};
+
+window.cerrarModalLegal = function() {
+    const modal = document.getElementById('modalLegal');
+    if (modal) modal.style.display = 'none';
+};
+window.auditarCapacidadSaaS = async function() {
+    console.log("🔍 Iniciando escaneo de capacidad de VENTAS en la nube...");
+    const LIMITE_VENTAS = 15000; 
+    
+    try {
+        let negocios = await pb.collection('users').getFullList({ requestKey: null });
+        let abusosDetectados = [];
+
+        for (let negocio of negocios) {
+            let idNegocio = negocio.negocio_id;
+            if (!idNegocio) continue;
+
+            try {
+                let ventas = await pb.collection('ventas').getList(1, 1, {
+                    filter: `negocio_id='${idNegocio}'`,
+                    requestKey: null
+                });
+
+                if (ventas.totalItems > LIMITE_VENTAS) {
+                    abusosDetectados.push({
+                        nombre: negocio.name || "Sin Nombre",
+                        contacto: negocio.email || "Sin Correo",
+                        total_ventas: ventas.totalItems,
+                        motivo: "Exceso de transacciones en la nube"
+                    });
+                }
+            } catch (errVentas) {
+                console.warn(`⚠️ No se pudieron leer las ventas del negocio: ${idNegocio}`);
+            }
+        }
+
+        if (abusosDetectados.length > 0) {
+            console.table(abusosDetectados);
+            alert(`⚠️ Se detectaron ${abusosDetectados.length} negocios que superan el límite de ventas. Revisa la consola.`);
+        } else {
+            alert("✅ Todos los clientes están operando dentro de los límites permitidos.");
+        }
+
+    } catch (error) {
+        console.error("❌ Error maestro al auditar capacidad:", error);
+    }
+};
+window.cerrarRegistro = function(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    
+    // 1. Ocultar el modal de registro
+    const modalReg = document.getElementById('modalRegistro');
+    if (modalReg) modalReg.style.display = 'none';
+
+    // 2. Asegurar que la pantalla de inicio/login vuelva a verse
+    const loginScreen = document.getElementById('login-screen');
+    if (loginScreen) loginScreen.style.display = 'flex';
+};
+window.auditarCapacidadSaaS = async function() {
+    console.log("🔍 Iniciando escaneo de capacidad de VENTAS en la nube...");
+    const LIMITE_VENTAS = 15000; 
+    
+    try {
+        let negocios = await pb.collection('users').getFullList({ requestKey: null });
+        let abusosDetectados = [];
+
+        for (let negocio of negocios) {
+            let idNegocio = negocio.negocio_id;
+            if (!idNegocio) continue;
+
+            try {
+                let ventas = await pb.collection('ventas').getList(1, 1, {
+                    filter: `negocio_id='${idNegocio}'`,
+                    requestKey: null
+                });
+
+                if (ventas.totalItems > LIMITE_VENTAS) {
+                    abusosDetectados.push({
+                        nombre: negocio.name || "Sin Nombre",
+                        contacto: negocio.email || "Sin Correo",
+                        total_ventas: ventas.totalItems,
+                        motivo: "Exceso de transacciones en la nube"
+                    });
+                }
+            } catch (errVentas) {
+                console.warn(`⚠️ No se pudieron leer las ventas del negocio: ${idNegocio}`);
+            }
+        }
+
+        if (abusosDetectados.length > 0) {
+            console.table(abusosDetectados);
+            alert(`⚠️ Se detectaron ${abusosDetectados.length} negocios que superan el límite de ventas. Revisa la consola.`);
+        } else {
+            alert("✅ Todos los clientes están operando dentro de los límites permitidos.");
+        }
+
+    } catch (error) {
+        console.error("❌ Error maestro al auditar capacidad:", error);
     }
 };

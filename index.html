@@ -134,7 +134,7 @@ body {
             <input type="email" id="login_saas_email" placeholder="Correo electrónico" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 15px; box-sizing: border-box;">
             <input type="password" id="login_saas_pass" placeholder="Contraseña maestra" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 15px; box-sizing: border-box;">
             <a href="#" onclick="recuperarPassword()" style="font-size: 0.85em; color: #2563eb; text-decoration: none; display: block; text-align: right; margin-top: 5px; margin-bottom: 15px; font-weight: bold;">¿Olvidaste tu contraseña?</a>
-            <button onclick="vincularTerminalSaaS()" style="width: 100%; background: #0f172a; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; font-size: 15px; cursor: pointer; margin-top: 5px;">
+           <button onclick="window.vincularTerminalSaaS(event)" style="width: 100%; background: #0f172a; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; font-size: 15px; cursor: pointer; margin-top: 5px;">
                 VINCULAR TERMINAL 🔗
             </button>
         </div>
@@ -187,7 +187,7 @@ body {
     <button class="t-btn" id="btn_cli-tab" onclick="changeTab(event, 'cli-tab')">CLIENTES</button>
     <button class="t-btn" id="btn_pro-tab" onclick="changeTab(event, 'pro-tab')">PROMOCIONES</button>
     <button class="t-btn" id="btn_audi-tab" onclick="changeTab(event, 'audi-tab')" style="background:#dc3545; color:white; font-weight:bold;"><i class="fa-solid fa-clipboard-check"></i> AUDITORÍAS</button>
-    <button class="t-btn" id="btn_rec-tab" onclick="changeTab(event, 'rec-tab')" style="background:#0dcaf0; color:#000; font-weight:bold;"><i class="fa-solid fa-mobile-screen-button"></i> RECARGAS</button>
+    <button class="t-btn" id="btn_rec-tab" onclick="changeTab(event, 'rec-tab'); verificarAccesoRecargas();" style="background:#0dcaf0; color:#000; font-weight:bold;"><i class="fa-solid fa-mobile-screen-button"></i> RECARGAS</button>
     <button class="t-btn" id="btn_r-tab" onclick="changeTab(event, 'r-tab')" style="background:var(--warning); color:#000;"><i class="fa-solid fa-chart-pie"></i> DASHBOARD</button>
     <button id="btn_kardex-tab" class="t-btn" onclick="changeTab(event, 'kardex-tab'); if(typeof window.renderKardex === 'function') window.renderKardex();"><i class="fa-solid fa-boxes-stacked"></i> KARDEX</button>
     <button class="t-btn" id="btn_u-tab" onclick="changeTab(event, 'u-tab')" style="background:var(--d); color:white;"><i class="fa-solid fa-gear"></i> AJUSTES</button>
@@ -301,25 +301,43 @@ body {
             <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; align-items: center;">
                 <input type="text" id="v_cod" autocomplete="off" placeholder="ESCANEÉ CÓDIGO PRODUCTO..." onkeypress="handleVenta(event)" autofocus style="flex: 1 1 150px; height: 40px; box-sizing: border-box; padding: 0 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px;">
                 <button class="no-print" onclick="abrirEscanerCamara()" style="background: #28a745; color: white; border: none; border-radius: 4px; height: 40px; padding: 0 15px; cursor: pointer; font-size: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); white-space: nowrap;" title="Escanear con Cámara"><i class="fa-solid fa-camera"></i></button>
-                <button class="btn-search" onclick="abrirBuscador()" style="height: 40px; padding: 0 15px; font-size: 13px; border-radius: 4px; border: none; cursor: pointer; white-space: nowrap;"><i class="fa-solid fa-magnifying-glass"></i> BUSCAR [F10]</button>
+                
             </div>
-            <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; background: #fdfdfd; padding: 10px; border-radius: 8px; border: 1px solid #eee; margin-bottom: 15px; gap: 10px;">
-                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                    <button style="background:var(--warning); border:none; padding:8px 15px; border-radius:5px; font-weight:bold; cursor:pointer; white-space: nowrap;" onclick="preguntarPausar()"><i class="fa-solid fa-pause"></i> Pausar [F8]</button>
-                    <button style="background:var(--info); color:white; border:none; padding:8px 15px; border-radius:5px; font-weight:bold; cursor:pointer; white-space: nowrap;" onclick="abrirPausadas()"><i class="fa-solid fa-list-check"></i> Ver Pausadas [F7] (<span id="count_pausadas">0</span>)</button>
-                    <button style="background:#dc3545; color:white; border:none; padding:8px 15px; border-radius:5px; font-weight:bold; cursor:pointer; white-space: nowrap;" onclick="registrarGasto()"><i class="fa-solid fa-money-bill-trend-up"></i> Registrar Gasto</button>
-                    <button class="btn font-weight-bold" onclick="abrirModoCremeria()" style="background: #ffc107; color: #000; border: none; border-radius: 5px; padding: 8px 15px; margin-left: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-    🧀 Modo Cremería
+            <!-- 🎛️ BARRA DE VENTAS (CARRUSEL MÓVIL Y LÍNEA ÚNICA EN PC) -->
+<div class="carrusel-wrapper" style="margin-bottom: 15px;">
+    <button class="flecha-scroll flecha-izq" onclick="moverCarrusel(this, -1)">◀</button>
+    
+    <!-- gap reducido a 5px -->
+    <div class="carrusel-movil" style="background: #fdfdfd; padding: 10px; border-radius: 8px; border: 1px solid #eee; gap: 5px; align-items: center;">
+        
+        <!-- padding reducido a 10px y font-size a 13px -->
+        <button class="btn-search" onclick="abrirBuscador()" style="border: none; padding: 8px 10px; border-radius: 5px; font-weight: bold; font-size: 13px; cursor: pointer; white-space: nowrap; flex-shrink: 0;">
+    <i class="fa-solid fa-magnifying-glass"></i> BUSCAR [F10]
 </button>
+
+<button style="background: var(--warning); border: none; padding: 8px 10px; border-radius: 5px; font-weight: bold; font-size: 13px; cursor: pointer; white-space: nowrap; flex-shrink: 0;" onclick="preguntarPausar()">
+    <i class="fa-solid fa-pause"></i> Pausar [F8]
+</button>
+        <button style="background:var(--info); color:white; border:none; padding:8px 10px; border-radius:5px; font-weight:bold; font-size:13px; cursor:pointer; white-space: nowrap; flex-shrink: 0;" onclick="abrirPausadas()"><i class="fa-solid fa-list-check"></i> Ver Pausadas [F7] (<span id="count_pausadas">0</span>)</button>
+        
+        <button style="background:#dc3545; color:white; border:none; padding:8px 10px; border-radius:5px; font-weight:bold; font-size:13px; cursor:pointer; white-space: nowrap; flex-shrink: 0;" onclick="registrarGasto()"><i class="fa-solid fa-money-bill-trend-up"></i> Registrar Gasto</button>
+        
+        <button class="btn font-weight-bold" onclick="abrirModoCremeria()" style="background: #ffc107; color: #000; border: none; border-radius: 5px; padding: 8px 10px; font-size:13px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); white-space: nowrap; flex-shrink: 0;">🧀 Modo Cremería</button>
+        
+        <!-- Historial a la derecha -->
+        <button style="background:var(--danger); color:white; border:none; padding:8px 10px; border-radius:5px; font-weight:bold; font-size:13px; cursor:pointer; white-space: nowrap; flex-shrink: 0; margin-left: auto;" onclick="abrirVisorTickets()"><i class="fa-solid fa-clock-rotate-left"></i> Historial [F9]</button>
+        
+    </div>
+    
+    <button class="flecha-scroll flecha-der" onclick="moverCarrusel(this, 1)">▶</button>
+</div>
 
                     <div id="alertaRevisionContenedor" style="display: none; margin: 10px 0;">
     <button id="btnIrARevision" onclick="abrirRevisionAsignada()" class="btn-animado-alerta" style="background-color: #e67e22; color: white; border: none; padding: 12px 20px; font-weight: bold; border-radius: 5px; cursor: pointer; width: 100%; box-shadow: 0 4px 15px rgba(230,126,34,0.4);">
         🚨 TIENES (1) REVISIÓN DE INVENTARIO ASIGNADA ¡DAR CLIC AQUÍ!
     </button>
 </div>
-                </div>
-                <button style="background:var(--danger); color:white; border:none; padding:8px 15px; border-radius:5px; font-weight:bold; cursor:pointer; white-space: nowrap;" onclick="abrirVisorTickets()"><i class="fa-solid fa-clock-rotate-left"></i> Historial [F9]</button>
-            </div>
+                
             <table class="tabla-pos">
                 <thead><tr><th>Producto</th><th>Cant/Peso</th><th>Precio</th><th>Subtotal</th><th></th></tr></thead>
                 <tbody id="v_lista"></tbody>
@@ -339,22 +357,54 @@ body {
 <div id="c-tab" class="tabcontent no-print">
     <div class="split-container">
         <div class="panel-izq">
-            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; align-items: center;">
-                <input type="text" id="c_cod" placeholder="SCAN CÓDIGO PRODUCTO..." onkeypress="handleCompraScan(event)" style="flex: 1 1 150px; height: 40px; box-sizing: border-box; padding: 0 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px;">
-                <button onclick="abrirCalculadoraCajaGlobal()" style="background:#004085; color:white; border:none; border-radius: 4px; height: 40px; padding: 0 15px; cursor: pointer; font-weight: bold; font-size: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); white-space: nowrap;">📦 Cajas</button>
-                <button class="no-print" onclick="abrirEscanerCamara('c_cod')" style="background: #28a745; color: white; border: none; border-radius: 4px; height: 40px; padding: 0 15px; cursor: pointer; font-size: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); white-space: nowrap;">📷</button>
-                <button class="btn-search" onclick="abrirBuscador()" style="height: 40px; padding: 0 15px; font-size: 13px; border-radius: 4px; border: none; cursor: pointer; white-space: nowrap;">🔍 BUSCAR</button>
-                <button class="btn-search" style="background:var(--s); height: 40px; padding: 0 15px; font-size: 13px; border-radius: 4px; border: none; cursor: pointer; white-space: nowrap;" onclick="abrirModalMovimiento()">💵 MOVIMIENTO CAJA</button>
+            
+            <!-- 🛒 BARRA 1: BÚSQUEDA Y CAJA (CARRUSEL MÓVIL) -->
+            <div class="carrusel-wrapper" style="margin-bottom: 15px;">
+                <button class="flecha-scroll flecha-izq" onclick="moverCarrusel(this, -1)">◀</button>
+                
+                <div class="carrusel-movil" style="gap: 8px; align-items: center;">
+                    <!-- Se agregó min-width: 180px para que no se aplaste en móvil -->
+                    <input type="text" id="c_cod" placeholder="SCAN CÓDIGO PRODUCTO..." onkeypress="handleCompraScan(event)" style="flex: 1 1 150px; min-width: 180px; height: 40px; box-sizing: border-box; padding: 0 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px;">
+                    
+                    <button onclick="abrirCalculadoraCajaGlobal()" style="background:#004085; color:white; border:none; border-radius: 4px; height: 40px; padding: 0 15px; cursor: pointer; font-weight: bold; font-size: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); white-space: nowrap; flex-shrink: 0;">📦 Cajas</button>
+                    
+                    <button class="no-print" onclick="abrirEscanerCamara('c_cod')" style="background: #28a745; color: white; border: none; border-radius: 4px; height: 40px; padding: 0 15px; cursor: pointer; font-size: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); white-space: nowrap; flex-shrink: 0;">📷</button>
+                    
+                    
+                </div>
+                
+                <button class="flecha-scroll flecha-der" onclick="moverCarrusel(this, 1)">▶</button>
             </div>
             
-            <div style="display: flex; justify-content: space-between; align-items: center; background: #fdfdfd; padding: 10px; border-radius: 8px; border: 1px solid #eee; margin-bottom: 15px;">
-                <div>
-                    <button style="background:var(--warning); border:none; padding:8px 15px; border-radius:5px; font-weight:bold; cursor:pointer;" onclick="pausarCompraActual()">⏸️ Pausar Compra</button>
-                    <button style="background:var(--info); color:white; border:none; padding:8px 15px; border-radius:5px; font-weight:bold; cursor:pointer;" onclick="abrirComprasPausadas()">📋 Ver Pausadas (<span id="count_pausadas_compras">0</span>)</button>
-                </div>
-                <button style="background:var(--danger); color:white; border:none; padding:8px 15px; border-radius:5px; font-weight:bold; cursor:pointer;" onclick="abrirVisorCompras()">🧾 Historial de Compras</button>
-            </div>
+            <!-- ⏸️ BARRA 2: PAUSADAS E HISTORIAL (CARRUSEL MÓVIL) -->
+            <div class="carrusel-wrapper" style="margin-bottom: 15px;">
+                <button class="flecha-scroll flecha-izq" onclick="moverCarrusel(this, -1)">◀</button>
+                
+                <div class="carrusel-movil" style="background: #fdfdfd; padding: 10px; border-radius: 8px; border: 1px solid #eee; gap: 10px;">
+                    <button class="btn-search" onclick="abrirBuscador()" style="height: 40px; padding: 0 15px; font-size: 13px; font-weight: bold; border-radius: 5px; border: none; cursor: pointer; white-space: nowrap; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;">
+    🔍 BUSCAR
+</button>
 
+<button class="btn-search" onclick="abrirModalMovimiento()" style="background: var(--s); height: 40px; padding: 0 15px; font-size: 13px; font-weight: bold; border-radius: 5px; border: none; cursor: pointer; white-space: nowrap; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;">
+    💵 MOVIMIENTO CAJA
+</button>
+
+<button onclick="pausarCompraActual()" style="background: var(--warning); height: 40px; padding: 0 15px; font-size: 13px; font-weight: bold; border-radius: 5px; border: none; cursor: pointer; white-space: nowrap; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;">
+    ⏸️ Pausar Compra
+</button>
+
+<button onclick="window.abrirComprasPausadas()" style="background: var(--info); color: white; height: 40px; padding: 0 15px; font-size: 13px; font-weight: bold; border-radius: 5px; border: none; cursor: pointer; white-space: nowrap; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;">
+    📋 Pausadas (<span id="count_pausadas_compras">0</span>)
+</button>
+
+<!-- margin-left: auto mantiene este botón a la derecha en la PC -->
+<button onclick="abrirVisorCompras()" style="background: var(--danger); color: white; height: 40px; padding: 0 15px; font-size: 13px; font-weight: bold; border-radius: 5px; border: none; cursor: pointer; white-space: nowrap; flex-shrink: 0; margin-left: auto; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;">
+    🧾 Historial de Compras
+</button>
+                </div>
+                
+                <button class="flecha-scroll flecha-der" onclick="moverCarrusel(this, 1)">▶</button>
+            </div>
             <div class="c-grid">
                 <div style="grid-column: span 2;"><label>Nombre</label><input type="text" id="c_nom" onkeydown="focoC(event, 'c_dep', 'c_cod')"></div>
                 <div><label>Departamento</label><input type="text" id="c_dep" placeholder="Ej. Abarrotes" value="General" onkeydown="focoC(event, 'c_tipo', 'c_nom')"></div>
@@ -532,49 +582,89 @@ body {
             </div>
         </div>
         <!-- ========================================================================= -->
-        <div style="display:flex; flex-direction:column; gap:15px; margin-bottom:20px;">
-            <div style="display:flex; align-items:center; flex-wrap:wrap; gap:15px;">
-                <h2 style="margin:0;">Catálogo (<span class="lbl-suc-act" style="color:var(--p)">Matriz</span>)</h2>
-                <div id="admin_total_inv_container" style="display:none; background:#1a1d20; color:#ffc107; padding:6px 15px; border-radius:8px; font-weight:bold; border: 1px solid #444; font-size:14px;">
-                    💰 VALOR TOTAL: $<span id="lbl_total_inv_cost">0.00</span>
-                </div>
+        <!-- 🎛️ BOTONERA CON CARRUSEL TÁCTIL -->
+<div style="display:flex; flex-direction:column; gap:15px; margin-bottom:20px;">
+    
+    <div style="display:flex; align-items:center; flex-wrap:wrap; gap:15px;">
+        <h2 style="margin:0;">Catálogo (<span class="lbl-suc-act" style="color:var(--p)">Matriz</span>)</h2>
+        <!-- Valor Total Original -->
+            <div id="admin_total_inv_container" style="display:none; background:#1a1d20; color:#ffc107; padding:10px 15px; border-radius:8px; font-weight:bold; border: 1px solid #444; font-size:14px; white-space: nowrap;">
+                💰 VALOR TOTAL: $<span id="lbl_total_inv_cost">0.00</span>
             </div>
-            <div style="display:flex; gap:10px; flex-wrap: wrap;">
-                
-                <button onclick="abrirModalRecepciones()" style="background:var(--orange); color:white; border:none; padding:10px 15px; border-radius:8px; cursor:pointer; font-weight:bold; position:relative; font-size:13px;">📦 RECEPCIONES <span id="btn_recepciones_badge" style="background:red; color:white; border-radius:50%; padding:2px 6px; font-size:10px; display:none; margin-left:5px;"></span></button>
-                <button onclick="abrirTransferencia()" style="background:var(--kit); color:white; border:none; padding:10px 15px; border-radius:8px; cursor:pointer; font-weight:bold; font-size:13px;">🚚 ENVIAR</button>
-                
-                <button onclick="document.getElementById('modalImport').style.display='block'" style="background:var(--p); color:white; border:none; padding:10px 15px; border-radius:8px; cursor:pointer; font-weight:bold; font-size:13px;">📥 EXCEL</button>
-                <button onclick="abrirCorteCaja()" style="background:#851414; color:white; border:none; padding:10px 15px; border-radius:8px; cursor:pointer; font-weight:bold; border-left: 4px solid red; font-size:13px; box-shadow: 0 4px 6px rgba(0,0,0,0.15);" title="Cierre de Turno / Corte Z">🛑 CERRAR CAJA</button>
-                <button id="btn_hacer_inv_ciego" style="background:#17a2b8; color:white; font-weight:bold; padding: 8px 12px; border:none; border-radius:5px; cursor:pointer; margin-right: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);" onclick="abrirModalInventarioCiego()">📦 HACER INV. CIEGO</button>
-                <button id="btn_sync_inventario" onclick="forzarSincronizacionInventario()" style="background: #ff9800; color: white; padding: 12px 20px; font-size: 14px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: 0.2s; display: inline-flex; align-items: center; gap: 8px;">
-    🔄 FORZAR DESCARGA DE CATÁLOGO
-</button>
-<!-- Botones de Acción en Inventario -->
-<div style="display: flex; gap: 10px; align-items: center; margin-left: auto;">
-    <!-- Botón 1: Cargar / Alternar Catálogo Base -->
-    <button type="button" onclick="gestionarCatalogoBase()" 
-            style="background: #0284c7; color: white; border: none; padding: 8px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-        📦 Catálogo Base
-    </button>
-            </div>
+    </div>
+<!-- 🎛️ BOTONERA CON TUS FUNCIONES ORIGINALES Y CARRUSEL TÁCTIL -->
+    <div class="carrusel-wrapper">
+        <!-- Flecha Izquierda -->
+        <button class="flecha-scroll flecha-izq" onclick="moverCarrusel(this, -1)">◀</button>
+        
+        <div class="carrusel-movil" style="display:flex; gap:10px; align-items:center;">
+            
+            
+            
+            <!-- Tus botones exactos -->
+            <button onclick="abrirModalRecepciones()" style="background:var(--orange); color:white; border:none; padding:10px 15px; border-radius:8px; cursor:pointer; font-weight:bold; position:relative; font-size:13px; white-space: nowrap;">
+                📦 RECEPCIONES <span id="btn_recepciones_badge" style="background:red; color:white; border-radius:50%; padding:2px 6px; font-size:10px; display:none; margin-left:5px;"></span>
+            </button>
+            
+            <button onclick="abrirTransferencia()" style="background:var(--kit); color:white; border:none; padding:10px 15px; border-radius:8px; cursor:pointer; font-weight:bold; font-size:13px; white-space: nowrap;">
+                🚚 ENVIAR
+            </button>
+            
+            <button onclick="document.getElementById('modalImport').style.display='block'" style="background:var(--p); color:white; border:none; padding:10px 15px; border-radius:8px; cursor:pointer; font-weight:bold; font-size:13px; white-space: nowrap;">
+                📥 EXCEL
+            </button>
+            
+           
+            
+            <button id="btn_hacer_inv_ciego" onclick="abrirModalInventarioCiego()" style="background:#17a2b8; color:white; font-weight:bold; padding: 10px 15px; border:none; border-radius:8px; cursor:pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); white-space: nowrap;">
+                📦 HACER INV. CIEGO
+            </button>
+            
+            <button id="btn_sync_inventario" onclick="forzarSincronizacionInventario()" style="background: #ff9800; color: white; padding: 10px 15px; font-size: 13px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: 0.2s; display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;">
+                🔄 FORZAR DESCARGA DE CATÁLOGO
+            </button>
+            <!-- ✨ AQUÍ ESTÁ DE REGRESO EL BOTÓN DE CATÁLOGO BASE ✨ -->
+            <button onclick="gestionarCatalogoBase()" style="background: #0284c7; color: white; border: none; padding: 10px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); font-size: 13px; white-space: nowrap;">
+                📦 Catálogo Base
+            </button>
+            
         </div>
-        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-            <input type="text" id="buscar_inv" placeholder="🔍 Buscar por código o nombre..." onkeyup="filtrarInventario(false, event)" style="flex: 2; font-size:16px; padding:12px;">
-            <select id="filtro_dep" onchange="filtrarInventario()" style="flex: 1; font-size:14px; padding:10px;"><option value="">📁 Todos los Deptos</option></select>
-            <select id="filtro_tipo" onchange="filtrarInventario()" style="flex: 1; font-size:14px; padding:10px;"><option value="">📦 Todos los Tipos</option><option value="pieza">Unidad (Pieza)</option><option value="granel">Granel</option><option value="kit">Kit</option></select>
-            <!-- ⚠️ NUEVO FILTRO PARA PRODUCTOS EN PELIGRO -->
-    <select id="filtro_alerta" onchange="filtrarInventario()" style="flex: 1; font-size:14px; padding:10px; border-color:#ffc107; background-color:#fffdf5;">
+
+        <!-- Flecha Derecha -->
+        <button class="flecha-scroll flecha-der" onclick="moverCarrusel(this, 1)">▶</button>
+    </div>
+
+</div>       
+        <div class="carrusel-inteligente">
+            <!-- Flecha Izquierda -->
+    <button class="flecha-scroll flecha-izq" onclick="moverCarrusel(this, -1)">◀</button>
+    
+    
+    <input type="text" id="buscar_inv" placeholder="🔍 Buscar por código o nombre..." onkeyup="filtrarInventario(false, event)" style="flex: 1 1 200px; min-width: 220px; font-size:16px; padding:12px; border-radius: 6px; border: 1px solid #ccc;">
+    
+    <select id="filtro_dep" onchange="filtrarInventario()" style="flex: 1 1 150px; min-width: 160px; font-size:14px; padding:10px; border-radius: 6px; border: 1px solid #ccc;">
+        <option value="">📁 Todos los Deptos</option>
+    </select>
+    
+    <select id="filtro_tipo" onchange="filtrarInventario()" style="flex: 1 1 130px; min-width: 150px; font-size:14px; padding:10px; border-radius: 6px; border: 1px solid #ccc;">
+        <option value="">📦 Todos los Tipos</option>
+        <option value="pieza">Unidad (Pieza)</option>
+        <option value="granel">Granel</option>
+        <option value="kit">Kit</option>
+    </select>
+    
+    <select id="filtro_alerta" onchange="filtrarInventario()" style="flex: 1 1 140px; min-width: 150px; font-size:14px; padding:10px; border: 1px solid #ffc107; background-color:#fffdf5; border-radius: 6px;">
         <option value="">✅ Stock Normal</option>
         <option value="critico">⚠️ Solo por agotarse</option>
     </select>
-    <!-- Botón 2: Agregar Producto Nuevo -->
-    <button type="button" onclick="abrirModalNuevoProducto()" 
-            style="background: #16a34a; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+    
+    <button type="button" onclick="abrirModalNuevoProducto()" style="background: #16a34a; color: white; border: none; padding: 0 16px; min-height: 44px; border-radius: 6px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
         ➕ Nuevo Producto
     </button>
+    <button class="flecha-scroll flecha-der" onclick="moverCarrusel(this, 1)">▶</button>
+
 </div>
-        </div>
+        
         <div style="height:calc(100vh - 220px); overflow-y:auto; border: 1px solid #ddd; border-radius:8px;">
             <table class="tabla-pos" style="margin-top:0;">
                 <thead style="user-select: none;">
@@ -883,41 +973,34 @@ body {
     </div>
 </div>
 
-<div id="rec-tab" class="tabcontent no-print">
-    <div style="position: relative; width: 100%; height: 100%; overflow: hidden; display: flex; flex-direction: column;">
-        
-        <!-- 🛑 PANTALLA DE BLOQUEO Y FORMULARIO -->
-        <div id="bloqueo_recargas" style="display: flex; flex-direction: column; align-items: center; justify-content: center; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #f8fafc; z-index: 50;">
-            <div style="background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 90%; max-width: 450px; text-align: center; border-top: 5px solid #2563eb;">
-                <h2 style="color: #1e40af; margin-top: 0; margin-bottom: 10px;">📱 Venta de Recargas</h2>
-                <p style="color: #475569; font-size: 14px; margin-bottom: 20px;">
-                    Para habilitar el cobro de servicios y recargas telefónicas en tu sucursal, envía tu solicitud.
-                </p>
-                
-                <input type="text" id="req_nombre" placeholder="👤 Nombre Completo" style="width: 100%; padding: 12px; margin-bottom: 12px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 14px;">
-                <input type="text" id="req_whatsapp" placeholder="💬 Número de WhatsApp" style="width: 100%; padding: 12px; margin-bottom: 12px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 14px;">
-                <input type="email" id="req_correo" placeholder="📧 Correo Electrónico" style="width: 100%; padding: 12px; margin-bottom: 12px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 14px;">
-                <input type="text" id="req_direccion" placeholder="📍 Dirección Completa del Negocio" style="width: 100%; padding: 12px; margin-bottom: 20px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 14px;">
-                
-                <button onclick="enviarSolicitudRecargas()" style="width: 100%; padding: 14px; background: #2563eb; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 15px; transition: background 0.3s;">
-                    🚀 SOLICITAR ACCESO
-                </button>
-                <p id="msg_recargas_pendiente" style="display: none; color: #d97706; font-weight: bold; margin-top: 15px; background: #fef3c7; padding: 10px; border-radius: 6px;">
-                    ⏳ Tu solicitud está en revisión. Te notificaremos pronto.
-                </p>
-            </div>
+<div id="rec-tab" class="tabcontent no-print" style="background: #f8fafc; min-height: 85vh; width: 100%; padding: 20px 10px; box-sizing: border-box;">
+    
+    <!-- 🛑 PANTALLA DE BLOQUEO Y FORMULARIO -->
+    <div id="bloqueo_recargas" style="display: none; width: 100%; max-width: 450px; margin: 0 auto; box-sizing: border-box;">
+        <div style="background: #fff; padding: 25px 20px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; box-sizing: border-box; text-align: center; border-top: 5px solid #2563eb;">
+            <h2 style="color: #1e40af; margin-top: 0; margin-bottom: 10px;">📱 Venta de Recargas</h2>
+            <p style="color: #475569; font-size: 14px; margin-bottom: 20px;">
+                Para habilitar el cobro de servicios y recargas telefónicas en tu sucursal, envía tu solicitud.
+            </p>
+            
+            <input type="text" id="req_nombre" placeholder="👤 Nombre Completo" style="width: 100%; padding: 12px; margin-bottom: 12px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 14px;">
+            <input type="text" id="req_whatsapp" placeholder="💬 Número de WhatsApp" style="width: 100%; padding: 12px; margin-bottom: 12px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 14px;">
+            <input type="email" id="req_correo" placeholder="📧 Correo Electrónico" style="width: 100%; padding: 12px; margin-bottom: 12px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 14px;">
+            <input type="text" id="req_direccion" placeholder="📍 Dirección Completa del Negocio" style="width: 100%; padding: 12px; margin-bottom: 20px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 14px;">
+            
+            <button onclick="enviarSolicitudRecargas()" style="width: 100%; padding: 14px; background: #2563eb; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 15px; box-sizing: border-box;">
+                🚀 SOLICITAR ACCESO
+            </button>
+            <p id="msg_recargas_pendiente" style="display: none; color: #d97706; font-weight: bold; margin-top: 15px; background: #fef3c7; padding: 10px; border-radius: 6px; box-sizing: border-box;">
+                ⏳ Tu solicitud está en revisión. Te notificaremos pronto.
+            </p>
         </div>
-
-        <!-- 🌐 TU PORTAL ORIGINAL DE MULTIPREPAID (Se oculta por defecto hasta que lo apruebes) -->
-        <div id="portal_recargas" style="display: none; height: 100%; flex-direction: column;">
-            <div style="background: #fff; padding: 12px; text-align: center; border-bottom: 2px solid #ddd; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                <span style="color:#666; font-size: 13px; margin-right: 15px;">¿La página se ve en blanco o bloqueada?</span>
-                <a href="https://www.multiprepaid.mx/web/login/menuprin.aspx" target="_blank" style="background:var(--p); color:white; padding: 8px 15px; border-radius: 6px; text-decoration:none; font-weight:bold; font-size: 13px;">🔗 ABRIR PORTAL EN NUEVA PESTAÑA</a>
-            </div>
-            <iframe src="https://www.multiprepaid.mx/web/login/menuprin.aspx" style="width:100%; flex-grow:1; border:none; background: #fff;"></iframe>
-        </div>
-        
     </div>
+
+    <!-- 🌐 TU PORTAL ORIGINAL DE MULTIPREPAID (Vacío por defecto) -->
+    <div id="portal_recargas" style="display: none; width: 100%; height: 80vh; flex-direction: column; box-sizing: border-box;">
+    </div>
+
 </div>
 
 <div id="u-tab" class="tabcontent no-print">
@@ -2406,6 +2489,7 @@ body {
                 <span>📦 Precargar catálogo base de abarrotes</span>
             </label>
         </div>
+        
 
         <!-- 🤖 ESCUDO ANTI-BOTS CAPTCHA -->
         <div style="margin-bottom: 20px; padding: 10px; background: #fffbeb; border: 1px solid #fde047; border-radius: 6px; text-align: center;">
@@ -2414,15 +2498,26 @@ body {
             </label>
             <input type="number" id="reg_captcha" placeholder="?" style="width: 60px; text-align: center; margin-left: 10px; padding: 5px; border: 1px solid #fde047; border-radius: 4px; font-weight: bold;">
         </div>
+        <div style="display: flex; align-items: flex-start; gap: 10px; margin: 15px 0; font-size: 13px; text-align: left;">
+    <input type="checkbox" id="reg_aceptar_terminos" style="margin-top: 3px; cursor: pointer;">
+    <span style="color: #334155;">
+        He leído y acepto los 
+        <a href="javascript:void(0)" onclick="abrirModalLegal(event)" style="color: #2563eb; text-decoration: underline; font-weight: bold; cursor: pointer;">
+            Términos, Condiciones y Aviso de Privacidad
+        </a>.
+    </span>
+</div>
 
         <button onclick="registrarNuevoNegocio()" id="btn_crear_cuenta" style="width: 100%; background: #2563eb; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; font-size: 1.05em; cursor: pointer; margin-bottom: 10px;">
             Comenzar ahora 🚀
         </button>
-        <button onclick="document.getElementById('modalRegistro').style.display='none'" style="width: 100%; background: transparent; color: #64748b; border: none; padding: 8px; cursor: pointer;">
-            Cancelar
-        </button>
+        <button type="button" onclick="document.getElementById('modalRegistro').style.display='none'" style="width: 100%; background: transparent; color: #64748b; border: none; padding: 8px; cursor: pointer;">
+    Cancelar
+</button>
     </div>
 </div>
+
+
 
 
 <!-- 📷 MODAL GLOBAL PARA ESCANEAR CON LA CÁMARA -->
@@ -2485,8 +2580,80 @@ body {
         </div>
     </div>
 </div>
+<!-- 🛑 MODAL ADVERTENCIA: SALIR DE SUCURSAL MATRIZ -->
+<div id="modal_elegir_sucursal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100vh; background: rgba(0,0,0,0.85); z-index: 99999; justify-content: center; align-items: center; backdrop-filter: blur(5px);">
+    <div style="background: #fff; padding: 30px; border-radius: 12px; width: 90%; max-width: 400px; text-align: center; box-shadow: 0 20px 40px rgba(220, 38, 38, 0.2); border-top: 5px solid #dc2626;">
+        <h2 style="margin-top: 0; color: #991b1b;">⚠️ Acción Requerida</h2>
+        <p style="color: #475569; font-size: 14px; margin-bottom: 20px;">
+            Actualmente estás asignado a la sucursal por defecto <b>(Matriz)</b>. Aún no has elegido tu sucursal real para este dispositivo. Selecciona una para continuar:
+        </p>
+        
+        <select id="select_sucursal_onboarding" style="width: 100%; padding: 12px; margin-bottom: 20px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 15px; text-align: center; background: #f8fafc;">
+            <option value="">-- Cargando tus sucursales... --</option>
+        </select>
+        
+        <button onclick="guardarSeleccionSucursal()" style="width: 100%; padding: 14px; background: #dc2626; color: white; border: none; border-radius: 6px; font-weight: bold; font-size: 15px; cursor: pointer;">
+            ✅ ASIGNAR SUCURSAL
+        </button>
+    </div>
+</div>
+<!-- 📋 MODAL LISTA DE COMPRAS PAUSADAS -->
+<div id="modalComprasPausadas" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; justify-content:center; align-items:center;">
+    <div style="background:white; padding:20px; border-radius:8px; width:90%; max-width:500px; max-height:80vh; display:flex; flex-direction:column; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+        
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #eee; padding-bottom:10px; margin-bottom:15px;">
+            <h3 style="margin:0; color:#17a2b8;">📋 Compras en Pausa</h3>
+            <button onclick="document.getElementById('modalComprasPausadas').style.display='none'" style="background:none; border:none; font-size:22px; cursor:pointer; color:#dc3545;">✖</button>
+        </div>
+        
+        <!-- Aquí se inyectarán las compras pausadas -->
+        <div id="listaComprasPausadas" style="overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:10px; padding-right:5px;">
+        </div>
+        
+        <div style="margin-top:15px; text-align:right; border-top:1px solid #eee; padding-top:15px;">
+            <button onclick="document.getElementById('modalComprasPausadas').style.display='none'" style="background:#6c757d; color:white; border:none; padding:8px 20px; border-radius:5px; font-weight:bold; cursor:pointer;">Cerrar</button>
+        </div>
+    </div>
+</div>
+<!-- MODAL LEGAL AUTÓNOMO POSPROGEM -->
+<div id="modalLegal" style="display: none; position: fixed; inset: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.75); z-index: 99999999; justify-content: center; align-items: center; padding: 15px; box-sizing: border-box;">
+    <div style="background: #ffffff; width: 100%; max-width: 600px; max-height: 85vh; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.5); font-family: system-ui, sans-serif;">
+        
+        <!-- Encabezado -->
+        <div style="padding: 14px 20px; background: #0f172a; color: #ffffff; display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-weight: 700; font-size: 16px;">Términos y Privacidad — PosProGem</span>
+            <button type="button" onclick="cerrarModalLegal()" style="background: #ef4444; color: #ffffff; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px;">✕ Cerrar</button>
+        </div>
+
+        <!-- Contenido -->
+        <div style="padding: 20px; overflow-y: auto; font-size: 13.5px; color: #334155; line-height: 1.6; text-align: left;">
+            <h3 style="margin-top: 0; color: #0f172a;">1. Aviso de Privacidad</h3>
+            <p><strong>PosProGem</strong> es responsable del resguardo y confidencialidad de la información registrada. Toda la información comercial, inventarios y ventas es propiedad exclusiva del usuario.</p>
+            <p><strong>Almacenamiento Local:</strong> El sistema utiliza almacenamiento local en el navegador (IndexedDB y LocalStorage) para operar en Modo Offline. El usuario consiente dicho almacenamiento técnico.</p>
+            
+            <hr style="margin: 18px 0; border: none; border-top: 1px solid #e2e8f0;">
+
+            <h3 style="color: #0f172a;">2. Términos y Condiciones de Uso</h3>
+            <p><strong>Límites y Capacidad:</strong> El plan estándar de PosProGem garantiza rendimiento óptimo para un máximo de <strong>dos (2) sucursales de tamaño promedio</strong>. Operaciones mayores requieren evaluación para planes de infraestructura dedicados.</p>
+            <p><strong>Modo Offline y Pérdida de Datos:</strong> Si el usuario limpia intencionalmente el navegador o daña el equipo antes de sincronizar con la nube, esa información local se perderá sin responsabilidad para PosProGem.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    function abrirModalLegal(e) {
+        if (e && e.preventDefault) e.preventDefault();
+        var m = document.getElementById('modalLegal');
+        if (m) m.style.display = 'flex';
+    }
+
+    function cerrarModalLegal() {
+        var m = document.getElementById('modalLegal');
+        if (m) m.style.display = 'none';
+    }
+</script>
 
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-<script src="app.js?v=88"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>
