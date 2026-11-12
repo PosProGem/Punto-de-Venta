@@ -192,7 +192,7 @@ body {
     <button id="btn_kardex-tab" class="t-btn" onclick="changeTab(event, 'kardex-tab'); if(typeof window.renderKardex === 'function') window.renderKardex();"><i class="fa-solid fa-boxes-stacked"></i> KARDEX</button>
     <button class="t-btn" id="btn_u-tab" onclick="changeTab(event, 'u-tab')" style="background:var(--d); color:white;"><i class="fa-solid fa-gear"></i> AJUSTES</button>
     
-    <div style="margin-left:auto; display:flex; gap:15px; align-items:center;">
+    <div style="margin-left:auto; display:flex; gap:30px; align-items:center;">
         <div id="live_clock" style="color:#aaa; font-size:12px; font-weight:bold; margin-right:10px;"></div>
         <select id="ui_sucursal" onchange="cambiarSucursal(this.value)" style="padding:6px; border-radius:6px; font-weight:bold; background:#1a1d20; color:var(--warning); border:1px solid #444;" disabled></select>
         <div style="color:#aaa; font-size:13px; font-weight:bold;">👤 <span id="ui_current_user">N/A</span> | <span style="cursor:pointer; color:var(--danger)" onclick="cerrarSesion()">Salir</span></div>
@@ -1046,6 +1046,10 @@ body {
                         <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" id="chk_rec-tab"> 📱 Recargas Multimarca</label>
                         <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" id="chk_u-tab"> ⚙️ Configuración (Ajustes)</label>
                         <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" id="chk_kardex-tab"> 📊 Kardex</label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+    <input type="checkbox" id="perm_cambio_sucursal" class="perm_check" value="cambiar_sucursal"> 
+    🏢 Cambiar de Sucursal
+</label>
                     </div>
                     
                     <label style="font-size:11px; font-weight:bold; color:var(--info); margin-top:15px; margin-bottom:5px; display:block;">🏢 SUCURSALES PERMITIDAS:</label>
@@ -2675,6 +2679,6 @@ body {
 </script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-<script src="app.js?v=9"></script>
+<script src="app.js?v=14"></script>
 </body>
 </html>

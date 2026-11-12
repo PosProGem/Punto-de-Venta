@@ -2157,73 +2157,89 @@ function initLoginSelect() {
 
     sel.innerHTML = htmlUsuarios;
 }
+function aplicarPermisosSucursalUI(u, sucF) {
+    let tienePermiso = (u === "Admin" || (typeof usuariosData !== 'undefined' && usuariosData[u] && usuariosData[u].permisos && usuariosData[u].permisos.includes('cambiar_sucursal')));
+    let selector = document.getElementById('ui_sucursal');
+
+    if (selector) {
+        selector.disabled = !tienePermiso;
+        for (let i = 0; i < selector.options.length; i++) {
+            let opt = selector.options[i];
+            let ocultar = !tienePermiso && opt.value !== sucF;
+            opt.hidden = ocultar;
+            opt.disabled = ocultar;
+            opt.style.display = ocultar ? 'none' : '';
+        }
+        selector.value = sucF;
+    }
+
+    if (document.getElementById('corte_sucursal')) document.getElementById('corte_sucursal').disabled = !tienePermiso;
+    if (document.getElementById('t_origen')) document.getElementById('t_origen').disabled = !tienePermiso;
+
+    Array.from(document.querySelectorAll('span, b, strong, label')).forEach(el => {
+        if (el.children.length === 0 && el.innerText && el.innerText.startsWith('TOTAL VENTA (')) {
+            el.innerText = `TOTAL VENTA (${sucF.toUpperCase()})`;
+        }
+    });
+}
 
 window.intentarLogin = async function() {
-    let selectElement = document.getElementById('login_sucursal');
-    let sucSelect = selectElement ? selectElement.value : null;
-    let sucGuardada = localStorage.getItem('pos_sucursal_actual') || localStorage.getItem('pos_sucursal_v1');
-    let sucursalAValidar = sucSelect || sucGuardada;
+    let selectUser = document.getElementById('login_user');
+    let u = selectUser ? selectUser.value : ""; 
+    let tienePermiso = (u === "Admin" || (typeof usuariosData !== 'undefined' && usuariosData[u] && usuariosData[u].permisos && usuariosData[u].permisos.includes('cambiar_sucursal')));
 
-    // 🛡️ 1. AUTO-SELECCIÓN INTELIGENTE DE SUCURSAL REAL
+    // Fuente real de la terminal (la misma que usa initLoginSelect)
+    let sucTerminal = (typeof sucursalActual !== 'undefined' && sucursalActual) 
+        ? sucursalActual 
+        : (localStorage.getItem('pos_sucursal_actual') || localStorage.getItem('pos_sucursal_v1'));
+
+    let selectElement = document.getElementById('login_sucursal');
+    let sucSelect = (selectElement && selectElement.value && selectElement.value !== "Matriz") ? selectElement.value : null;
+
+    let sucursalAValidar = tienePermiso ? (sucSelect || sucTerminal) : (sucTerminal || sucSelect);
+
+    // Auto-selección solo si nunca se ha configurado ninguna sucursal
     if (!sucursalAValidar || sucursalAValidar === "Matriz" || sucursalAValidar === "null" || sucursalAValidar.trim() === "") {
-        
         let sucursalReal = "";
-        
-        // 1ro: Buscar la primera sucursal válida que ya esté cargada en el selector HTML
-        if (selectElement && selectElement.options.length > 0) {
-            for (let i = 0; i < selectElement.options.length; i++) {
-                let val = selectElement.options[i].value;
+        let topSel = document.getElementById('ui_sucursal') || selectElement;
+        if (topSel && topSel.options.length > 0) {
+            for (let i = 0; i < topSel.options.length; i++) {
+                let val = topSel.options[i].value;
                 if (val && val !== "Matriz" && val !== "null" && val.trim() !== "") {
                     sucursalReal = val;
                     break;
                 }
             }
         }
-
-        // 2do: Si por alguna razón el selector falló, intentamos usar el nombre del negocio (SaaS)
         if (!sucursalReal) {
             let nombreSaaS = (typeof pb !== 'undefined' && pb.authStore?.model?.name) ? pb.authStore.model.name : null;
             sucursalReal = nombreSaaS ? nombreSaaS : "Sucursal Principal";
         }
-
         sucursalAValidar = sucursalReal;
-        
-        // Guardamos la sucursal válida para que quede fija en el sistema y no vuelva a fallar
-        localStorage.setItem('pos_sucursal_v1', sucursalAValidar);
-        localStorage.setItem('pos_sucursal_actual', sucursalAValidar);
-        if (selectElement) selectElement.value = sucursalAValidar;
-
         alert(`⚠️ Se ha seleccionado automáticamente tu sucursal: "${sucursalAValidar}".\nSi tienes más de una, puedes cambiarla en el menú de la esquina superior derecha.`);
     }
 
-    // Asignación global obligatoria
+    // Sincronizamos TODAS las variables y memorias a la misma sucursal
+    if (typeof sucursalActual !== 'undefined') sucursalActual = sucursalAValidar;
     window.sucursalActual = sucursalAValidar;
+    localStorage.setItem('pos_sucursal_v1', sucursalAValidar);
+    localStorage.setItem('pos_sucursal_actual', sucursalAValidar);
+    if (selectElement) selectElement.value = sucursalAValidar;
 
-    let u = document.getElementById('login_user').value; 
     let p = document.getElementById('login_pin').value;
-    
     let datosCajero = (typeof usuariosData !== 'undefined' && usuariosData[u]) ? usuariosData[u] : null;
     let pinValido = datosCajero && datosCajero.pin === p;
 
     if (pinValido) { 
-        // ✅ Muestra la barra de pestañas únicamente al acceder con éxito
         let tabMenu = document.querySelector('.tab');
         if (tabMenu) tabMenu.style.display = 'flex';
 
         usuarioActual = u; 
         window.usuarioActivoGlobal = u;
-        
-        let sucF = (typeof window.sucursalActual !== 'undefined' && window.sucursalActual) ? window.sucursalActual : "Principal";
+        let sucF = sucursalAValidar;
 
-        // Mostramos arriba a la derecha: "Admin"
         let elCurrentUser = document.getElementById('ui_current_user');
         if (elCurrentUser) elCurrentUser.innerText = u;
-
-        // 🔄 1. Actualizar el selector/botón azul de la sucursal de forma segura
-        let selectorSucursal = document.getElementById('ui_sucursal');
-        if (selectorSucursal) {
-            selectorSucursal.value = sucF;
-        }
 
         let screen = document.getElementById('login-screen');
         if (screen) {
@@ -2231,7 +2247,6 @@ window.intentarLogin = async function() {
             screen.classList.add('oculto');
         }
         
-        // 👉 ¡AQUÍ ESTÁ LA MAGIA! Ejecutamos el trabajo pesado
         if (typeof arrancarTablasEInventario === 'function') {
             arrancarTablasEInventario();
         }
@@ -2241,21 +2256,8 @@ window.intentarLogin = async function() {
             try { localStorage.setItem("pos_usuarios_v1", JSON.stringify(usuariosData)); } catch(e){}
         }
 
-        if (u === "Admin") { 
-            let uiSucursal = document.getElementById('ui_sucursal');
-            if (uiSucursal) uiSucursal.disabled = false; 
-            let corteSucursal = document.getElementById('corte_sucursal');
-            if (corteSucursal) corteSucursal.disabled = false;
-            let tOrigen = document.getElementById('t_origen');
-            if (tOrigen) tOrigen.disabled = false;
-        } else { 
-            let uiSucursal = document.getElementById('ui_sucursal');
-            if (uiSucursal) uiSucursal.disabled = true; 
-            let corteSucursal = document.getElementById('corte_sucursal');
-            if (corteSucursal) corteSucursal.disabled = true;
-            let tOrigen = document.getElementById('t_origen');
-            if (tOrigen) tOrigen.disabled = true;
-        }
+        // Aplicamos permisos y visibilidad de sucursales sin destruir el HTML
+        aplicarPermisosSucursalUI(u, sucF);
         
         document.querySelectorAll('.t-btn').forEach(btn => btn.style.display = 'none');
         let allowedTabs = usuariosData[u].tabs || ["v-tab", "c-tab", "prov-tab", "k-tab", "i-tab", "cli-tab", "pro-tab", "rec-tab", "r-tab", "u-tab", "kardex-tab", "audi-tab"];
@@ -2276,18 +2278,8 @@ window.intentarLogin = async function() {
         let loginPinInput = document.getElementById('login_pin');
         if (loginPinInput) loginPinInput.value = '';
 
-        // 🔄 BAUTIZO VISUAL SEGURO Y LIMPIO
-        setTimeout(() => {
-            let selector = document.getElementById('ui_sucursal');
-            if (selector) selector.value = sucF;
-
-            // Actualiza textos como el Carrito
-            Array.from(document.querySelectorAll('span, b, strong, label')).forEach(el => {
-                if (el.children.length === 0 && el.innerText && el.innerText.startsWith('TOTAL VENTA (')) {
-                    el.innerText = `TOTAL VENTA (${sucF.toUpperCase()})`;
-                }
-            });
-        }, 250);
+        // Reaplicamos una vez por si arrancarTablasEInventario() llena opciones de forma asíncrona
+        setTimeout(() => aplicarPermisosSucursalUI(u, sucF), 350);
         
         if (typeof window.verificarSuscripcion === 'function') window.verificarSuscripcion();
 
@@ -2445,6 +2437,12 @@ window.guardarUsuario = async function() {
             tabs.push('audi-tab');
         }
     }
+
+    // 👉 NUEVO: Lee la nueva casilla de Cambiar Sucursal
+    if (document.getElementById('perm_cambio_sucursal') && document.getElementById('perm_cambio_sucursal').checked) {
+        permisos.push('cambiar_sucursal');
+    }
+
     let objetoUsuario = { 
         pin: pin, 
         tabs: tabs, 
@@ -2496,6 +2494,10 @@ window.guardarUsuario = async function() {
     
     if (document.getElementById('perm_inv_ciego')) document.getElementById('perm_inv_ciego').checked = false;
     if (document.getElementById('perm_auditoria')) document.getElementById('perm_auditoria').checked = false;
+    
+    // 👉 NUEVO: Limpia la nueva casilla al terminar de guardar
+    if (document.getElementById('perm_cambio_sucursal')) document.getElementById('perm_cambio_sucursal').checked = false;
+
     document.querySelectorAll('.cb-sucursal').forEach(cb => cb.checked = false);
     
     // 4. Actualizar Tablas y Menú de Login (ESTA ES LA CLAVE)
@@ -2546,21 +2548,52 @@ function editarUsuario(nom) {
 
 
 
-function eliminarUsuario(nom) {
-    if(nom === 'Admin') return alert("No puedes eliminar al administrador");
-    if(confirm("¿Seguro de eliminar a " + nom + "?")) {
-        db.collection("usuarios").doc(nom).delete()
-        .then(() => alert("Usuario eliminado"))
-        .catch(e => alert("Error: " + e));
+window.eliminarUsuario = async function(nom) {
+    if (!nom || nom === 'Admin') return alert("No puedes eliminar al administrador.");
+    if (!confirm("¿Seguro de eliminar a " + nom + "?")) return;
+
+    // 1. Eliminar de la memoria activa
+    if (window.usuariosData) delete window.usuariosData[nom];
+    if (typeof usuariosData !== 'undefined') delete usuariosData[nom];
+
+    // 2. Actualizar localStorage para que no regrese al recargar
+    try { localStorage.setItem("pos_usuarios_v1", JSON.stringify(window.usuariosData)); } catch(e) {}
+    try { localStorage.setItem("pos_usuarios_v9", JSON.stringify(window.usuariosData)); } catch(e) {}
+
+    // 3. Eliminar de PocketBase (la nube)
+    if (typeof pb !== 'undefined' && pb.authStore && pb.authStore.isValid) {
+        let miNegocioId = pb.authStore.model.negocio_id;
+        try {
+            let existe = await pb.collection('usuarios').getFirstListItem(`doc_id="${nom}" && negocio_id="${miNegocioId}"`, { requestKey: null });
+            await pb.collection('usuarios').delete(existe.id, { requestKey: null });
+            console.log("🗑️ Cajero eliminado de PocketBase:", nom);
+        } catch(errPB) {
+            console.warn("⚠️ No se encontró en PocketBase o ya estaba eliminado:", errPB);
+        }
     }
-}
+
+    // 4. Refrescar tabla de configuración y selector de Login
+    if (typeof renderUsuarios === 'function') renderUsuarios();
+    if (typeof initLoginSelect === 'function') initLoginSelect();
+
+    alert("✅ Usuario eliminado correctamente.");
+};
 
 // ====================================================================
 // === SUCURSALES Y CONFIGURACIÓN ===
 // ====================================================================
 function cambiarSucursal(ns) { 
-    if (usuarioActual !== "" && usuarioActual !== "Admin") {
-        alert("❌ Acceso Denegado. Solo el Administrador puede cambiar la sucursal de trabajo.");
+    // 1. Verificamos si es Admin o si tiene el permiso asignado
+    let tienePermiso = false;
+    if (usuarioActual === "Admin") {
+        tienePermiso = true;
+    } else if (usuarioActual !== "" && usuariosData[usuarioActual] && usuariosData[usuarioActual].permisos && usuariosData[usuarioActual].permisos.includes('cambiar_sucursal')) {
+        tienePermiso = true;
+    }
+
+    // 2. Si no tiene el permiso, bloqueamos el cambio
+    if (!tienePermiso) {
+        alert("❌ Acceso Denegado. No tienes permiso para cambiar la sucursal de trabajo.");
         document.getElementById('ui_sucursal').value = sucursalActual; 
         return; 
     }
@@ -3634,6 +3667,7 @@ let aplicaMayoreo = (tipoMayoreoAplicado !== "");
             }
             
             let p = s / (x.can || 1); 
+            x.subtotalCalculado = s; // 👈 Guardamos el subtotal real de pantalla
             t += s; 
             
             // Conservamos el nombre original del producto escaneado
@@ -4189,10 +4223,28 @@ window.confirmarVenta = async function(cambioFinal = 0) {
             let stockDespues = obtenerStockRealSucursal(pMaestro, suc);
             if (stockDespues === stockAntes && pOriginal.tipo !== 'kit') stockDespues = stockAntes - cantVendida;
 
-            let minM = pMaestro.md || 10; 
-            let precioVentaNormal = pMaestro.pv || 0;
-            if (pMaestro.pre_sucursales && pMaestro.pre_sucursales[suc] !== undefined) precioVentaNormal = pMaestro.pre_sucursales[suc];
-            let precioMayoreo = pMaestro.pm || precioVentaNormal;
+            let minM = parseFloat(pMaestro.md) || 10; 
+            let minM2 = parseFloat(pMaestro.md2) || 0;
+            let precioVentaNormal = parseFloat(pMaestro.pv) || 0;
+            if (pMaestro.pre_sucursales && pMaestro.pre_sucursales[suc] !== undefined) precioVentaNormal = parseFloat(pMaestro.pre_sucursales[suc]);
+            
+            let precioMayoreo1 = parseFloat(pMaestro.pm) || precioVentaNormal;
+            let precioMayoreo2 = parseFloat(pMaestro.pm2) || precioMayoreo1;
+            let subtotalNormal = cantVendida * precioVentaNormal;
+            let s = subtotalNormal;
+
+            if (x.subtotalCalculado !== undefined) {
+                s = parseFloat(x.subtotalCalculado);
+            } else if (typeof forceWholesale !== 'undefined' && forceWholesale) {
+                if (minM2 > 0 && cantVendida >= minM2) {
+                    s = cantVendida * precioMayoreo2;
+                } else if (cantVendida >= minM) {
+                    s = cantVendida * precioMayoreo1;
+                }
+            }
+
+            if (x.esGranelMontoExacto !== undefined) { s = parseFloat(x.esGranelMontoExacto); } 
+            else if (x.precioManual !== undefined) { s = cantVendida * x.precioManual; }
             
             let promoActiva = null;
             if(typeof promociones !== 'undefined' && Array.isArray(promociones)) {
@@ -4227,13 +4279,7 @@ window.confirmarVenta = async function(cambioFinal = 0) {
                 }
             }
 
-            let aplicaMayoreo = (typeof forceWholesale !== 'undefined' && forceWholesale) && (cantVendida >= minM); 
-            let subtotalNormal = cantVendida * precioVentaNormal;
-            let s = aplicaMayoreo ? (cantVendida * precioMayoreo) : subtotalNormal;
-
-            if (x.esGranelMontoExacto !== undefined) { s = parseFloat(x.esGranelMontoExacto); } 
-            else if (x.precioManual !== undefined) { s = cantVendida * x.precioManual; }
-
+           
             let subCobrado = s;
             sumaTotalCobrada += subCobrado;
             let printName = (x.nom || 'Producto').substring(0,15); 
