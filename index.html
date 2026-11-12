@@ -11,7 +11,7 @@
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pocketbase/0.20.1/pocketbase.umd.js"></script>
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 
     <link rel="stylesheet" href="styles.css?v=5">
 
@@ -1003,79 +1003,83 @@ body {
 
 </div>
 
-<div id="u-tab" class="tabcontent no-print">
-    <div style="padding:25px; max-width: 1200px; margin: 0 auto;">
+<div id="u-tab" class="tabcontent no-print" style="width: 100%; max-width: 100vw; box-sizing: border-box; overflow-x: hidden;">
+    <div style="padding:15px; max-width: 1200px; margin: 0 auto; box-sizing: border-box;">
 
         <h2 style="margin-top:0; color:var(--d); margin-bottom: 20px;">⚙️ Configuración General y Usuarios</h2>
 
         <!-- EL CONTENEDOR INTELIGENTE QUE CREA LAS DOS COLUMNAS -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 20px; align-items: start;">
-
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 450px), minmax(0, 1fr))); gap: 20px; align-items: start; width: 100%; box-sizing: border-box;">
             <!-- ========================================== -->
             <!-- 📦 CAJA 1: TODA LA COLUMNA IZQUIERDA       -->
             <!-- ========================================== -->
-            <div style="display: flex; flex-direction: column; gap: 20px;">
-                
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 450px), minmax(0, 1fr))); gap: 20px; align-items: start; width: 100%; box-sizing: border-box;">
                 <!-- 1. CREAR USUARIO -->
-                <div class="dash-card" style="border-top:4px solid var(--d)">
+                <div class="dash-card" style="border-top:4px solid var(--d); width: 100%; box-sizing: border-box;">
                     <h3 style="margin-top:0;">➕ Crear o Editar Usuario</h3>
-                    <div style="display:flex; gap:15px; margin-bottom:15px;">
-                        <div style="flex:2">
+                    
+                    <div style="display:flex; flex-wrap: wrap; gap:15px; margin-bottom:15px; width: 100%;">
+                        <div style="flex: 1 1 200px;">
                             <label style="font-size:11px; font-weight:bold; color:var(--p)">NOMBRE USUARIO:</label>
-                            <input type="text" id="u_nombre" placeholder="Ej. Juan, Caja1">
+                            <input type="text" id="u_nombre" placeholder="Ej. Juan, Caja1" style="width: 100%; box-sizing: border-box;">
                         </div>
-                        <div style="flex:1">
+                        <div style="flex: 1 1 120px;">
                             <label style="font-size:11px; font-weight:bold; color:var(--p)">PIN:</label>
-                            <input type="text" id="u_pin" autocomplete="off" style="-webkit-text-security: disc; width: 100%; padding: 8px;">
+                            <input type="text" id="u_pin" autocomplete="off" style="-webkit-text-security: disc; width: 100%; padding: 8px; box-sizing: border-box;">
                         </div>
                     </div>
-                    <label style="font-size:11px; font-weight:bold; color:var(--p); margin-bottom:5px; display:block;">PERMISOS - SELECCIONA LOS MÓDULOS PERMITIDOS:</label>
-                    <div class="check-grid">
-                        <div><input type="checkbox" id="perm_inv_ciego" class="perm_check" value="inv_ciego"><label>📦 Hacer Inv. (Ciego)</label></div>
-                        <div><input type="checkbox" id="perm_auditoria" class="perm_check" value="auditoria"><label>🕵️ Auditorías (Admin)</label></div>
-                        <label><input type="checkbox" id="chk_v-tab" checked> 🛒 Ventas y Cobro</label>
-                        <label><input type="checkbox" id="chk_c-tab"> 📥 Compras/Ingreso</label>
-                        <label><input type="checkbox" id="chk_prov-tab"> 🚚 Proveedores</label>
-                        <label><input type="checkbox" id="chk_k-tab"> 📦 Kits</label>
-                        <label><input type="checkbox" id="chk_i-tab"> 📋 Inventario</label>
-                        <label><input type="checkbox" id="chk_cli-tab"> 👥 Clientes y Créditos</label>
-                        <label><input type="checkbox" id="chk_pro-tab"> 🏷️ Promociones</label>
-                        <label><input type="checkbox" id="chk_r-tab"> 📊 Dashboard y Cortes</label>
-                        <label><input type="checkbox" id="chk_rec-tab"> 📱 Recargas Multimarca</label>
-                        <label><input type="checkbox" id="chk_u-tab"> ⚙️ Configuración (Ajustes)</label>
-                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-                            <input type="checkbox" id="chk_kardex-tab" style="width:16px; height:16px;"><span>📊 Kardex</span>
-                        </label>
+                    
+                   <label style="font-size:11px; font-weight:bold; color:var(--p); margin-bottom:5px; display:block;">PERMISOS - SELECCIONA LOS MÓDULOS PERMITIDOS:</label>
+                    
+                    <!-- 🌟 EL ARREGLO: Cuadrícula inteligente que alinea la casilla pegada al texto -->
+                    <div class="check-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; width: 100%; box-sizing: border-box;">
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" id="perm_inv_ciego" class="perm_check" value="inv_ciego"> 📦 Hacer Inv. (Ciego)</label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" id="perm_auditoria" class="perm_check" value="auditoria"> 🕵️ Auditorías (Admin)</label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" id="chk_v-tab" checked> 🛒 Ventas y Cobro</label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" id="chk_c-tab"> 📥 Compras/Ingreso</label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" id="chk_prov-tab"> 🚚 Proveedores</label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" id="chk_k-tab"> 📦 Kits</label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" id="chk_i-tab"> 📋 Inventario</label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" id="chk_cli-tab"> 👥 Clientes y Créditos</label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" id="chk_pro-tab"> 🏷️ Promociones</label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" id="chk_r-tab"> 📊 Dashboard y Cortes</label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" id="chk_rec-tab"> 📱 Recargas Multimarca</label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" id="chk_u-tab"> ⚙️ Configuración (Ajustes)</label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" id="chk_kardex-tab"> 📊 Kardex</label>
                     </div>
+                    
                     <label style="font-size:11px; font-weight:bold; color:var(--info); margin-top:15px; margin-bottom:5px; display:block;">🏢 SUCURSALES PERMITIDAS:</label>
-                    <div id="contenedor_checkbox_sucursales" style="display:flex; flex-wrap:wrap; gap:15px; background:#f0f8ff; padding:15px; border-radius:8px; border:1px solid #cce5ff; min-height:50px; box-sizing: border-box;"></div>
-                    <small style="color:#666; font-size:11px; display:block; margin-bottom:20px;">*El usuario solo aparecerá en el login de las sucursales marcadas.</small>
-                    <button class="btn-final" style="background:var(--p); width:100%; margin-top:10px;" onclick="guardarUsuario()">💾 GUARDAR USUARIO</button>
+                    <!-- 🌟 LA SOLUCIÓN: flex-wrap: wrap OBLIGA A LOS BOTONES A BAJAR -->
+                    <div id="contenedor_checkbox_sucursales" style="display:flex; flex-wrap:wrap; gap:10px; background:#f0f8ff; padding:15px; border-radius:8px; border:1px solid #cce5ff; min-height:50px; width: 100%; box-sizing: border-box; overflow: hidden;"></div>
+                    
+                    <small style="color:#666; font-size:11px; display:block; margin-bottom:20px; margin-top: 10px; width: 100%; word-wrap: break-word;">*El usuario solo aparecerá en el login de las sucursales marcadas.</small>
+                    
+                    <button class="btn-final" style="background:var(--p); width:100%; margin-top:10px; box-sizing: border-box; white-space: normal;" onclick="guardarUsuario()">💾 GUARDAR USUARIO</button>
                 </div>
 
                 <!-- 2. LISTA DE USUARIOS -->
-                <div class="dash-card">
+                <div class="dash-card" style="width: 100%; box-sizing: border-box; overflow-x: auto;">
                     <h3 style="margin-top:0;">👥 Usuarios Registrados</h3>
-                    <table class="tabla-pos" style="margin-top:0;">
+                    <table class="tabla-pos" style="margin-top:0; width: 100%;">
                         <thead><tr><th>Usuario</th><th>Módulos Permitidos</th><th>Acción</th></tr></thead>
                         <tbody id="u_lista"></tbody>
                     </table>
                 </div>
 
                 <!-- 3. GESTIÓN DE SUCURSALES -->
-                <div class="dash-card" style="border-top:4px solid var(--info);">
+                <div class="dash-card" style="border-top:4px solid var(--info); width: 100%; box-sizing: border-box;">
                     <h3 style="margin-top:0; color:var(--info);">🏢 Gestión de Sucursales</h3>
-                    <div style="display:flex; gap:10px; margin-bottom:15px;">
-                        <input type="text" id="nueva_sucursal_nom" placeholder="Nombre de nueva sucursal..." style="flex:2">
-                        <button class="btn-final" style="background:var(--info); margin:0; flex:1; padding: 10px;" onclick="agregarSucursal()">➕ AGREGAR</button>
+                    <div style="display:flex; flex-wrap: wrap; gap:10px; margin-bottom:15px;">
+                        <input type="text" id="nueva_sucursal_nom" placeholder="Nombre de nueva sucursal..." style="flex: 1 1 200px; box-sizing: border-box;">
+                        <button class="btn-final" style="background:var(--info); margin:0; flex: 1 1 100px; padding: 10px; box-sizing: border-box;" onclick="agregarSucursal()">➕ AGREGAR</button>
                     </div>
-                    <div style="max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 8px;">
-                        <table class="tabla-pos" style="margin-top:0;">
+                    <div style="max-height: 200px; overflow-y: auto; overflow-x: auto; border: 1px solid #eee; border-radius: 8px;">
+                        <table class="tabla-pos" style="margin-top:0; width: 100%; min-width: 300px;">
                             <thead style="background:#f1f1f1;"><tr><th>Nombre de Sucursal</th><th>Acciones</th></tr></thead>
                             <tbody id="lista_gest_suc"></tbody>
                         </table>
                     </div>
-                    <p style="font-size: 11px; color: #888; margin-top: 10px;"><b>Nota:</b> Al agregar o renombrar una sucursal, los menús se actualizarán automáticamente.</p>
+                    <p style="font-size: 11px; color: #888; margin-top: 10px; word-wrap: break-word;"><b>Nota:</b> Al agregar o renombrar una sucursal, los menús se actualizarán automáticamente.</p>
                 </div>
             </div> <!-- FIN CAJA 1 (IZQUIERDA) -->
 
@@ -1083,73 +1087,73 @@ body {
             <!-- ========================================== -->
             <!-- 📦 CAJA 2: TODA LA COLUMNA DERECHA         -->
             <!-- ========================================== -->
-            <div style="display: flex; flex-direction: column; gap: 20px;">
+            <div style="display: flex; flex-direction: column; gap: 20px; width: 100%; min-width: 0; box-sizing: border-box;">
                 
                 <!-- 4. ALERTA DE INVENTARIO -->
-                <div class="dash-card">
+                <div class="dash-card" style="width: 100%; box-sizing: border-box;">
                     <h3 style="margin-top:0; color: #0d6efd;">📈 Pronóstico de Agotamiento</h3>
-                    <p style="font-size: 13px; color: #666; margin-bottom: 15px;">Analiza las ventas recientes y avisa 2 días antes de que un producto se acabe.</p>
-                    <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px; font-weight: bold; cursor: pointer;">
+                    <p style="font-size: 13px; color: #666; margin-bottom: 15px; word-wrap: break-word;">Analiza las ventas recientes y avisa 2 días antes de que un producto se acabe.</p>
+                    <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px; font-weight: bold; cursor: pointer; flex-wrap: wrap;">
                         <input type="checkbox" id="check_alerta_stock" style="width: 18px; height: 18px;" onchange="guardarConfigAlertas()"> Activar Alerta Inteligente
                     </label>
                     <label style="display: block; font-size: 13px; margin-bottom: 5px; font-weight: bold;">¿Quién puede ver las alertas?</label>
-                    <select id="select_permiso_alerta" style="padding: 8px; width: 100%; border-radius: 5px; border: 1px solid #ccc;" onchange="guardarConfigAlertas()">
+                    <select id="select_permiso_alerta" style="padding: 8px; width: 100%; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box;" onchange="guardarConfigAlertas()">
                         <option value="Admin">Solo Administradores</option>
                         <option value="Todos">Administradores y Cajeros</option>
                     </select>
                 </div>
 
                 <!-- 5. CONFIGURACIÓN DEL TICKET -->
-                <div class="dash-card" style="border-top:4px solid var(--p)">
+                <div class="dash-card" style="border-top:4px solid var(--p); width: 100%; box-sizing: border-box;">
                     <h3 style="margin-top:0; color:var(--d)">🧾 Configuración del Ticket</h3>
                     <label style="font-size:11px; font-weight:bold; color:var(--p)">SUCURSAL A EDITAR:</label>
-                    <select id="cfg_sucursal" onchange="cargarConfigEnUI()" style="margin-bottom: 15px; font-weight:bold; border-color:var(--p); width:100%;">
+                    <select id="cfg_sucursal" onchange="cargarConfigEnUI()" style="margin-bottom: 15px; font-weight:bold; border-color:var(--p); width:100%; box-sizing: border-box;">
                         <option value="Matriz">📍 Matriz</option><option value="Sucursal 1">📍 Sucursal 1</option><option value="Sucursal 2">📍 Sucursal 2</option>
                     </select>
                     <label style="font-size:11px; font-weight:bold; color:var(--p)">NOMBRE DE LA TIENDA / EMPRESA:</label>
-                    <input type="text" id="cfg_nombre" style="margin-bottom: 15px; font-size:18px; font-weight:bold; width:100%;" placeholder="Ej. Abarrotes La Principal">
+                    <input type="text" id="cfg_nombre" style="margin-bottom: 15px; font-size:18px; font-weight:bold; width:100%; box-sizing: border-box;" placeholder="Ej. Abarrotes La Principal">
                     <label style="font-size:11px; font-weight:bold; color:var(--p)">DIRECCIÓN Y TELÉFONO:</label>
-                    <textarea id="cfg_detalles" rows="3" style="margin-bottom: 15px; width:100%;" placeholder="Dirección completa, Teléfono, RFC..."></textarea>
+                    <textarea id="cfg_detalles" rows="3" style="margin-bottom: 15px; width:100%; box-sizing: border-box;" placeholder="Dirección completa, Teléfono, RFC..."></textarea>
                     <label style="font-size:11px; font-weight:bold; color:var(--p)">MENSAJE PIE DE PÁGINA:</label>
-                    <textarea id="cfg_mensaje" rows="2" style="width:100%; margin-bottom:15px;" placeholder="Ej. ¡Gracias por su preferencia!"></textarea>
+                    <textarea id="cfg_mensaje" rows="2" style="width:100%; margin-bottom:15px; box-sizing: border-box;" placeholder="Ej. ¡Gracias por su preferencia!"></textarea>
                     <label style="font-size:11px; font-weight:bold; color:var(--p); display:block;">TAMAÑO DE LETRA (12 a 16):</label>
-                    <input type="number" id="cfg_font" value="14" style="margin-bottom: 15px; font-size:18px; font-weight:bold; text-align:center; width:100%;">
-                    <button class="btn-final" style="background:var(--p); width:100%;" onclick="guardarConfigTicket()">💾 GUARDAR FORMATO</button>
+                    <input type="number" id="cfg_font" value="14" style="margin-bottom: 15px; font-size:18px; font-weight:bold; text-align:center; width:100%; box-sizing: border-box;">
+                    <button class="btn-final" style="background:var(--p); width:100%; box-sizing: border-box; white-space: normal;" onclick="guardarConfigTicket()">💾 GUARDAR FORMATO</button>
                 </div>
 
                 <!-- 6. MERCADO PAGO -->
-                <div class="dash-card" style="border-top:4px solid #009ee3; background:#f0f8ff;">
+                <div class="dash-card" style="border-top:4px solid #009ee3; background:#f0f8ff; width: 100%; box-sizing: border-box;">
                     <h3 style="margin-top:0; color:#009ee3;">💳 Terminal Mercado Pago</h3>
-                    <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-weight:bold; margin-bottom:15px; color:#333;">
+                    <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-weight:bold; margin-bottom:15px; color:#333; flex-wrap: wrap;">
                         <input type="checkbox" id="mp_activo" style="width:20px; height:20px; cursor:pointer;"> Activar conexión automática
                     </label>
-                    <div id="mp_config_campos" style="background:white; padding:15px; border-radius:8px; border:1px solid #cce5ff;">
+                    <div id="mp_config_campos" style="background:white; padding:15px; border-radius:8px; border:1px solid #cce5ff; width: 100%; box-sizing: border-box;">
                         <label style="font-size:11px; font-weight:bold; color:#009ee3;">ACCESS TOKEN:</label>
-                        <input type="password" id="mp_token" placeholder="APP_USR-1234..." style="margin-bottom: 15px; width:100%;">
+                        <input type="password" id="mp_token" placeholder="APP_USR-1234..." style="margin-bottom: 15px; width:100%; box-sizing: border-box;">
                         <label style="font-size:11px; font-weight:bold; color:#009ee3;">DEVICE ID:</label>
-                        <input type="text" id="mp_device" placeholder="Ej. PAX_SMART..." style="margin-bottom: 15px; width:100%; font-weight:bold;">
-                        <button class="btn-final" style="background:#009ee3; width:100%;" onclick="guardarConfigMP()">💾 GUARDAR CLAVES</button>
+                        <input type="text" id="mp_device" placeholder="Ej. PAX_SMART..." style="margin-bottom: 15px; width:100%; font-weight:bold; box-sizing: border-box;">
+                        <button class="btn-final" style="background:#009ee3; width:100%; box-sizing: border-box; white-space: normal;" onclick="guardarConfigMP()">💾 GUARDAR CLAVES</button>
                     </div>
                 </div>
 
                 <!-- 7. DISEÑO Y FONDOS -->
-                <div class="dash-card" style="border-top:4px solid #20c997; background:#f4fcf9;">
+                <div class="dash-card" style="border-top:4px solid #20c997; background:#f4fcf9; width: 100%; box-sizing: border-box;">
                     <h3 style="margin-top:0; color:#20c997;">🎨 Personalizar Fondos y Logos</h3>
-                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:15px; margin-bottom:15px;">
-                        <div style="background:white; padding:10px; border-radius:8px; border:1px solid #d1e7dd;">
+                    <div style="display:flex; flex-wrap: wrap; gap:15px; margin-bottom:15px;">
+                        <div style="flex: 1 1 150px; background:white; padding:10px; border-radius:8px; border:1px solid #d1e7dd; box-sizing: border-box;">
                             <label style="font-size:11px; font-weight:bold; color:#20c997;">🖼️ Fondo Inicio:</label>
-                            <input type="file" id="file_fondo_login" accept="image/png, image/jpeg, image/jpg" style="width:100%; font-size:11px; margin-top:5px;">
+                            <input type="file" id="file_fondo_login" accept="image/png, image/jpeg, image/jpg" style="width:100%; font-size:11px; margin-top:5px; box-sizing: border-box;">
                         </div>
-                        <div style="background:white; padding:10px; border-radius:8px; border:1px solid #d1e7dd;">
+                        <div style="flex: 1 1 150px; background:white; padding:10px; border-radius:8px; border:1px solid #d1e7dd; box-sizing: border-box;">
                             <label style="font-size:11px; font-weight:bold; color:#20c997;">🖼️ Fondo Ventas:</label>
-                            <input type="file" id="file_fondo_panel" accept="image/png, image/jpeg, image/jpg" style="width:100%; font-size:11px; margin-top:5px;">
+                            <input type="file" id="file_fondo_panel" accept="image/png, image/jpeg, image/jpg" style="width:100%; font-size:11px; margin-top:5px; box-sizing: border-box;">
                         </div>
-                        <div style="background:white; padding:10px; border-radius:8px; border:1px solid #d1e7dd;">
+                        <div style="flex: 1 1 150px; background:white; padding:10px; border-radius:8px; border:1px solid #d1e7dd; box-sizing: border-box;">
                             <label style="font-size:11px; font-weight:bold; color:#20c997;">💧 Marca Agua:</label>
-                            <input type="file" id="file_marca_agua" accept="image/png, image/jpeg, image/jpg" style="width:100%; font-size:11px; margin-top:5px;">
+                            <input type="file" id="file_marca_agua" accept="image/png, image/jpeg, image/jpg" style="width:100%; font-size:11px; margin-top:5px; box-sizing: border-box;">
                         </div>
                     </div>
-                    <button class="btn-final" style="background:#20c997; width:100%;" onclick="subirFondos()"><span id="btn_txt_fondos">💾 SUBIR FOTOS</span></button>
+                    <button class="btn-final" style="background:#20c997; width:100%; box-sizing: border-box; white-space: normal;" onclick="subirFondos()"><span id="btn_txt_fondos">💾 SUBIR FOTOS</span></button>
                 </div>
 
             </div> <!-- FIN CAJA 2 (DERECHA) -->
@@ -1646,11 +1650,28 @@ body {
 </div>
 
 <div id="modalBuscar" class="modal">
-    <div class="modal-content" style="width:700px; height:80vh; display:flex; flex-direction:column; padding-bottom: 15px;">
+    <!-- Tu clase original para que obedezca el tamaño máximo de tu CSS global -->
+    <div class="modal-content" style="display: flex; flex-direction: column;">
+        
         <h3 style="margin-top:0; color:var(--p);">Buscador de Productos</h3>
-        <input type="text" id="b_input" placeholder="🔍 Escribe nombre o código..." oninput="buscarProductos()" autocomplete="off" style="font-size:18px; padding:15px; margin-bottom:10px;">
-        <div style="overflow-y:auto; flex-grow:1;"><table class="tabla-pos"><thead style="position:sticky; top:0; background:white;"><tr><th>Código</th><th>Nombre</th><th>Stock Disp.</th><th>P. Venta</th></tr></thead><tbody id="b_resultados"></tbody></table></div>
-        <button class="btn-final" style="background:#eee; color:#333; margin-top:10px;" onclick="cerrarModales()">CERRAR</button>
+        <input type="text" id="b_input" placeholder="🔍 Escribe nombre o código..." oninput="buscarProductos()" autocomplete="off" style="font-size:16px; padding:12px; margin-bottom:10px; border-radius: 4px; border: 1px solid #ccc; width: 100%; box-sizing: border-box;">
+        
+        <!-- 🌟 EL CINTURÓN DE SEGURIDAD: min-width: 0 evita que el modal se desplace a la izquierda -->
+        <div style="flex-grow: 1; width: 100%; min-width: 0; display: block; overflow-x: auto; -webkit-overflow-scrolling: touch;">
+            <table class="tabla-pos" id="tabla-buscador-aislada" style="width: 100%;">
+                <thead>
+                    <tr style="border-bottom: 2px solid #ddd;">
+                        <th style="text-align: left;">Código</th>
+                        <th style="text-align: left;">Nombre</th>
+                        <th style="text-align: center;">Stock</th>
+                        <th style="text-align: right;">P. Venta</th>
+                    </tr>
+                </thead>
+                <tbody id="b_resultados"></tbody>
+            </table>
+        </div>
+        
+        <button class="btn-final" style="background:#eee; color:#333; margin-top:15px; width: 100%; padding: 12px; box-sizing: border-box;" onclick="cerrarModales()">CERRAR</button>
     </div>
 </div>
 
@@ -2013,7 +2034,7 @@ body {
         </div>
     </div>
 </div>
-<script src="https://unpkg.com/html5-qrcode"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 
 <div id="modalInventarioCiego" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center; box-sizing: border-box; padding: 10px;">
     
@@ -2087,7 +2108,7 @@ body {
     
    
 </script>
-<script src="https://unpkg.com/dexie/dist/dexie.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dexie/3.2.4/dexie.min.js"></script>
 
 <!-- ================= MODAL DE ARQUEO DE CAJA ================= -->
 <div id="modalArqueo" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; align-items: center; justify-content: center;">
@@ -2653,7 +2674,7 @@ body {
     }
 </script>
 
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-<script src="app.js?v=3"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>

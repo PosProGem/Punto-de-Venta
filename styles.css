@@ -1124,58 +1124,208 @@ body:has(#login-screen:not([style*="display: none"]):not([style*="display:none"]
     box-sizing: border-box;
 }
 
-/* =======================================================
-   1. ESCRITORIO (PC) - Respeta su diseño original centrado
-   ======================================================= */
-#u-tab {
-    max-width: 1200px;
-    margin: 0 auto;
-    width: 100%;
-    box-sizing: border-box;
+/* --- REGLAS DEL BUSCADOR EXCLUSIVAS PARA PC (Pantallas mayores a 768px) --- */
+@media (min-width: 769px) {
+    #modalBuscar .modal-content {
+        max-height: 85vh !important; 
+        
+        /* 🌟 OBLIGA AL MODAL A ESTIRARSE MÁS A LO ANCHO */
+        width: 95% !important;       /* Intenta ocupar casi toda la pantalla... */
+        max-width: 600px !important; /* ...hasta topar en 900px (antes estaba en 700px) */
+    }
+    
+    /* Obliga a la tabla a respetar una cuadrícula estricta */
+    #tabla-buscador-aislada {
+        table-layout: fixed !important; 
+        width: 100% !important;
+    }
+    
+    #tabla-buscador-aislada th,
+    #tabla-buscador-aislada td {
+        white-space: nowrap !important; /* Mantiene 1 sola línea */
+        overflow: hidden !important; /* Oculta lo que sobrepase la columna */
+        text-overflow: ellipsis !important; /* Agrega "..." si el texto es muy largo */
+        padding: 10px !important; 
+    }
+
+    /* Repartición exacta del espacio para que coincidan encabezados y datos */
+    #tabla-buscador-aislada th:nth-child(1) { width: 15%; } /* Código */
+    #tabla-buscador-aislada th:nth-child(2) { width: 50%; } /* Nombre */
+    #tabla-buscador-aislada th:nth-child(3) { width: 15%; } /* Stock */
+    #tabla-buscador-aislada th:nth-child(4) { width: 20%; } /* Precio */
 }
 
+/* --- REGLAS DEL BUSCADOR EXCLUSIVAS PARA CELULAR --- */
+@media (max-width: 768px) {
+    #tabla-buscador-aislada {
+        min-width: 500px !important; /* Fuerza el scroll por dentro */
+    }
+    
+    #tabla-buscador-aislada .celda-nombre {
+        white-space: normal !important; /* Rompe el texto en 2 renglones */
+        word-wrap: break-word !important;
+        min-width: 180px !important;
+    }
+}
+/* --- PROTECCIÓN GLOBAL PARA TODOS LOS MODALES EN CELULAR --- */
+@media (max-width: 768px) {
+    .modal-content, 
+    .modal-dialog, 
+    [id*="modal"] > div {
+        max-height: 88vh !important; /* Limita la altura para que no rebase tu teléfono */
+        
+        /* 🌟 EL SEGURO DE VIDA: Obliga a que cualquier contenido largo se quede DENTRO de la caja blanca usando scroll vertical */
+        overflow-y: auto !important; 
+        overflow-x: auto !important;
+    }
+}
 /* =======================================================
-   2. CELULARES (Menor o igual a 768px) - Apilado vertical forzado
-   ======================================================= */
-@media screen and (max-width: 768px) {
-    /* Elimina el padding de 25px para aprovechar todo el ancho */
+       CONTENCIÓN DE DESBORDAMIENTOS EN CONFIGURACIÓN (CELULAR)
+       ======================================================= */
+    
+    /* 1. Obliga a TODOS los elementos a calcular su ancho correctamente (incluyendo el padding) */
+    #u-tab * {
+        box-sizing: border-box !important;
+    }
+
+    /* 2. Protege la pestaña y las tarjetas para que jamás superen el ancho del celular */
+    #u-tab, 
+    #u-tab > div, 
+    #u-tab .dash-card {
+        max-width: 100vw !important; /* Límite absoluto al ancho de la pantalla */
+        overflow-x: hidden !important; /* Evita que rompan el borde azul */
+    }
+
+    /* 3. Asegura que los inputs y textareas no empujen los márgenes */
+    #u-tab input, 
+    #u-tab select, 
+    #u-tab textarea {
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+
+    /* Excepción: Devolvemos el scroll horizontal SOLO a las tablas dentro de las tarjetas */
+    #u-tab .dash-card:has(table) {
+        overflow-x: auto !important; 
+    }
+/* =======================================================
+       RESTAURACIÓN DE SCROLL EN PESTAÑAS PRINCIPALES (CELULARES)
+       ======================================================= */
+    html, body {
+        overflow-y: auto !important;
+        height: auto !important;
+    }
+
     #u-tab,
     #u-tab > div {
-        width: 100% !important;
-        max-width: 100% !important;
-        padding: 8px 4px !important;
-        margin: 0 !important;
-        box-sizing: border-box !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important; /* Deslizamiento suave en móviles */
+    }
+    /* =======================================================
+       LIBERACIÓN TOTAL DE ALTURA PARA LAS TABLAS EN PESTAÑAS (CELULAR)
+       ======================================================= */
+    #u-tab .tabla-pos {
+        margin-bottom: 40px !important; /* Espacio extra al final de la tabla */
     }
 
-    /* Anula cualquier Grid o Flexbox de 2 columnas:
-       al ser 'block', los paneles se apilan uno sobre otro obligatoriamente */
-    #u-tab > div > div,
     #u-tab div {
-        display: block !important;
-        width: 100% !important;
-        max-width: 100% !important;
-        box-sizing: border-box !important;
+        height: auto !important;
+        max-height: none !important;
     }
 
-    /* Formularios y tarjetas al 100% de ancho sin deformarse */
-    #u-tab .dash-card,
-    #u-tab form {
-        width: 100% !important;
-        max-width: 100% !important;
-        margin: 0 0 16px 0 !important;
-        box-sizing: border-box !important;
-    }
-
-    /* Desplazamiento horizontal táctil para la tabla de usuarios */
-    #u-tab .dash-card {
+    /* Contenedor directo de la tabla: scroll horizontal activo, pero altura libre */
+    #u-tab div:has(> .tabla-pos) {
         overflow-x: auto !important;
+        overflow-y: hidden !important; /* Escondemos el vertical aquí porque la página entera es la que debe bajar */
         -webkit-overflow-scrolling: touch !important;
+        padding-bottom: 15px !important;
+    }
+    /* =======================================================
+       OPCIÓN NUCLEAR: FORZAR SALTO DE RENGLÓN EN FORMULARIOS Y BOTONES (CELULAR)
+       ======================================================= */
+    
+    /* 1. Destruye la prohibición de salto de línea en todas las cajas y formularios */
+    #u-tab div,
+    #u-tab form,
+    .modal-content div,
+    .modal-content form {
+        flex-wrap: wrap !important;
+        white-space: normal !important;
     }
 
-    #u-tab .dash-card table {
-        display: table !important;
-        width: 100% !important;
-        min-width: 520px !important;
+    /* 2. Protege los botones y etiquetas (como las sucursales) para que no se desborden */
+    #u-tab label,
+    #u-tab button,
+    .modal-content label,
+    .modal-content button {
+        white-space: normal !important; /* Obliga al texto a bajar si es muy largo */
+        word-wrap: break-word !important;
+        max-width: 100% !important; /* Prohíbe que sean más anchos que tu celular */
+        flex-shrink: 1 !important; /* Permite que se encojan si es necesario */
+    }
+    /* Contenedor de ayuda sin JS */
+details.ayuda-nativa {
+    display: inline-block;
+    position: relative;
+    vertical-align: middle;
+    margin-left: 5px;
+}
+
+/* El círculo "?" */
+details.ayuda-nativa > summary {
+    list-style: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    background: #0d6efd;
+    color: #fff;
+    border-radius: 50%;
+    font-size: 11px;
+    font-weight: bold;
+    cursor: pointer;
+    user-select: none;
+}
+
+/* Quita la flechita negra por defecto en Chrome/Safari */
+details.ayuda-nativa > summary::-webkit-details-marker {
+    display: none;
+}
+
+/* El globo con la instrucción */
+details.ayuda-nativa > div {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #1e293b;
+    color: #fff;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: normal;
+    line-height: 1.4;
+    width: 85%;
+    max-width: 280px;
+    text-align: center;
+    z-index: 999999;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+/* En PC: se muestra justo arriba del "?" al pasar el mouse */
+@media (min-width: 769px) {
+    details.ayuda-nativa:hover > div,
+    details.ayuda-nativa[open] > div {
+        display: block;
+        position: absolute;
+        top: auto;
+        bottom: 135%;
+        left: 50%;
+        transform: translateX(-50%);
+        width: max-content;
+        max-width: 240px;
+        padding: 8px 12px;
+        font-size: 12px;
     }
 }
