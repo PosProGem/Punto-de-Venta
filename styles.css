@@ -1328,4 +1328,76 @@ details.ayuda-nativa > div {
         padding: 8px 12px;
         font-size: 12px;
     }
+}/* Carrusel en una sola línea para PC y móvil */
+.carrusel-wrapper {
+    display: flex !important;
+    align-items: center;
+    position: relative;
+}
+
+.carrusel-movil {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    width: 100%;
+    scrollbar-width: none; /* Oculta barra en reposo (Firefox) */
+    cursor: ew-resize; /* Indica movimiento horizontal en el fondo */
+}
+
+.carrusel-movil > button {
+    cursor: pointer; /* Mantiene el puntero normal sobre los botones */
+}
+
+.carrusel-movil::-webkit-scrollbar {
+    height: 5px;
+}
+
+.carrusel-movil::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.carrusel-movil::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 4px;
+}
+
+/* En PC: oculta flechas y activa indicadores al pasar el mouse */
+@media (min-width: 769px) {
+    .flecha-scroll {
+        display: none !important;
+    }
+
+    /* Muestra una barra delgada y resalta el borde al acercar el mouse */
+    .carrusel-wrapper:hover .carrusel-movil {
+        scrollbar-width: thin;
+        scrollbar-color: #94a3b8 #f1f5f9;
+        border-color: #cbd5e1 !important;
+    }
+
+    .carrusel-wrapper:hover .carrusel-movil::-webkit-scrollbar-thumb {
+        background: #94a3b8;
+    }
+
+    /* Muestra etiqueta discreta indicando que se mueve con la rueda */
+    .carrusel-wrapper::after {
+        content: "⇄";
+        position: absolute;
+        top: -11px;
+        right: 10px;
+        background: #1e293b;
+        color: #ffffff;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 10px;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+        z-index: 5;
+    }
+
+    .carrusel-wrapper:hover::after {
+        opacity: 0.92;
+    }
 }

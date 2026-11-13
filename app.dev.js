@@ -2097,13 +2097,7 @@ async function enviarSolicitudRecargas() {
 }
 // 2do Anclaje obligatorio
 window.enviarSolicitudRecargas = enviarSolicitudRecargas;
-function cerrarModales() { 
-    document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); 
-    setTimeout(() => { 
-        if(tabActual==='v-tab') document.getElementById('v_cod').focus(); 
-        if(tabActual==='c-tab') document.getElementById('c_cod').focus(); 
-    }, 150); 
-}
+
 
 // ====================================================================
 // === MÓDULO DE USUARIOS Y LOGIN ===
@@ -12083,33 +12077,6 @@ function abrirModalInventarioCiego() {
     }, 200);
 }
 
-function actualizarTablaCiego() {
-    let tbody = document.getElementById('lista_escaneo_ciego');
-    if (!tbody) return;
-
-    let html = '';
-    conteoActualCiego.forEach((item, index) => {
-        // 🛡️ ESCUDO DE PROPIEDADES: Lee de forma segura tanto '.nom' como '.nombre'
-        let nombreProducto = item.nom || item.nombre || 'Producto';
-
-        html += `
-            <tr style="border-bottom:1px solid #eee;">
-                <td style="padding:10px; text-align:left;"><b>${nombreProducto}</b><br><small style="color:#888;">${item.cod}</small></td>
-                <td style="padding:10px; text-align:center;">
-                    <input type="number" 
-                           id="cant_ciego_${index}" 
-                           value="${item.can_fisica}" 
-                           onchange="modificarCantCiego(${index}, this.value)" 
-                           onkeydown="regresarAlEscaner(event)"
-                           style="width:70px; text-align:center; padding:5px; font-size:16px; font-weight:bold; color:#0d6efd; border:1px solid #ccc; border-radius:4px;">
-                </td>
-                <td style="padding:10px; text-align:center;">
-                    <button onclick="eliminarItemCiego(${index})" style="background:none; border:none; cursor:pointer; color:#dc3545; font-size:16px;">✖</button>
-                </td>
-            </tr>`;
-    });
-    tbody.innerHTML = html;
-}
 // 🪄 FUNCIÓN DEL ENTER DE LA CANTIDAD: Decide a dónde regresar el foco según el modo activo
 function regresarAlEscaner(e) {
     if (e.key === 'Enter') {
@@ -16555,6 +16522,119 @@ window.cerrarRegistro = function(e) {
     const loginScreen = document.getElementById('login-screen');
     if (loginScreen) loginScreen.style.display = 'flex';
 };
+// --- INSTALACIÓN DIRECTA PWA CON DETECCIÓN DE INSTALADA ---
+(function() {
+    let eventoInstalacionPWA = null;
+
+    function ocultarBotonPWA() {
+        const btn = document.getElementById('btn_instalar_pwa');
+        if (btn) btn.style.display = 'none';
+        if (window.location.search.includes('instalar=1')) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    }
+
+    async function verificarSiYaEstaInstalada() {
+        // 1. Detecta si se abrió desde el ícono instalado
+        const enModoApp = window.matchMedia('(display-mode: standalone)').matches ||
+                          window.matchMedia('(display-mode: window-controls-overlay)').matches ||
+                          window.matchMedia('(display-mode: minimal-ui)').matches ||
+                          window.matchMedia('(display-mode: fullscreen)').matches ||
+                          window.navigator.standalone === true;
+
+        if (enModoApp) {
+            localStorage.setItem('pos_pwa_instalada', '1');
+            return true;
+        }
+
+        // 2. Consulta nativa a Chrome / Edge si la app ya existe en el sistema
+        if ('getInstalledRelatedApps' in navigator) {
+            try {
+                const apps = await navigator.getInstalledRelatedApps();
+                if (apps && apps.length > 0) {
+                    localStorage.setItem('pos_pwa_instalada', '1');
+                    return true;
+                }
+            } catch (e) {}
+        }
+
+        // 3. Revisa si este navegador ya la instaló previamente
+        if (localStorage.getItem('pos_pwa_instalada') === '1') {
+            return true;
+        }
+
+        return false;
+    }
+
+    // Si Chrome dispara este evento, significa que NO está instalada (o fue desinstalada)
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        eventoInstalacionPWA = e;
+        localStorage.removeItem('pos_pwa_instalada');
+        const btn = document.getElementById('btn_instalar_pwa');
+        if (btn) btn.style.display = 'block';
+    });
+
+    // Oculta y guarda registro en el instante en que termina de instalarse
+    window.addEventListener('appinstalled', () => {
+        eventoInstalacionPWA = null;
+        localStorage.setItem('pos_pwa_instalada', '1');
+        ocultarBotonPWA();
+    });
+
+    async function iniciarBotonPWA() {
+        const btn = document.getElementById('btn_instalar_pwa');
+        if (!btn) return;
+
+        const yaInstalada = await verificarSiYaEstaInstalada();
+        if (yaInstalada) {
+            ocultarBotonPWA();
+            return;
+        }
+
+        const esIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        const pideInstalar = new URLSearchParams(window.location.search).get('instalar') === '1';
+
+        if (esIOS || pideInstalar) {
+            btn.style.display = 'block';
+            if (pideInstalar) {
+                btn.style.background = '#10b981';
+                btn.innerText = '⬇️ Toca aquí para completar la instalación';
+            }
+        }
+
+        btn.addEventListener('click', async () => {
+            if (eventoInstalacionPWA) {
+                eventoInstalacionPWA.prompt();
+                const resultado = await eventoInstalacionPWA.userChoice;
+                if (resultado.outcome === 'accepted') {
+                    localStorage.setItem('pos_pwa_instalada', '1');
+                    ocultarBotonPWA();
+                }
+                eventoInstalacionPWA = null;
+            } else if (esIOS) {
+                alert('Para instalar en iPhone o iPad:\n\n1. Toca Compartir en Safari.\n2. Elige Agregar a inicio.');
+            } else {
+                const enlaceApp = 'https://posprogem.github.io/Punto-de-Venta/?instalar=1';
+                if (navigator.clipboard) {
+                    navigator.clipboard.writeText(enlaceApp).catch(() => {});
+                }
+                alert(
+                    'Para instalar en PC o Android:\n\n' +
+                    '1. Si abriste este enlace desde WhatsApp u otro navegador, abre Google Chrome y pega la direccion (ya se copio):\n' +
+                    enlaceApp + '\n\n' +
+                    '2. Ya dentro de Google Chrome, abre el menu (⋮) arriba a la derecha y selecciona "Instalar aplicacion".'
+                );
+            }
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', iniciarBotonPWA);
+    } else {
+        iniciarBotonPWA();
+    }
+})();
 window.auditarCapacidadSaaS = async function() {
     console.log("🔍 Iniciando escaneo de capacidad de VENTAS en la nube...");
     const LIMITE_VENTAS = 15000; 
@@ -16597,53 +16677,3 @@ window.auditarCapacidadSaaS = async function() {
         console.error("❌ Error maestro al auditar capacidad:", error);
     }
 };
-(function() {
-    let eventoInstalacionPWA = null;
-
-    window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();
-        eventoInstalacionPWA = e;
-        const btn = document.getElementById('btn_instalar_pwa');
-        if (btn) btn.style.display = 'block';
-    });
-
-    function iniciarBotonPWA() {
-        const btn = document.getElementById('btn_instalar_pwa');
-        if (!btn) return;
-
-        const esIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-        const yaInstalada = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-        const pideInstalar = new URLSearchParams(window.location.search).get('instalar') === '1';
-
-        if (yaInstalada) return;
-
-        if (esIOS || pideInstalar) {
-            btn.style.display = 'block';
-            if (pideInstalar) {
-                btn.style.background = '#10b981';
-                btn.innerText = '⬇️ Toca aquí para completar la instalación';
-            }
-        }
-
-        btn.addEventListener('click', async () => {
-            if (eventoInstalacionPWA) {
-                eventoInstalacionPWA.prompt();
-                const resultado = await eventoInstalacionPWA.userChoice;
-                if (resultado.outcome === 'accepted') {
-                    btn.style.display = 'none';
-                }
-                eventoInstalacionPWA = null;
-            } else if (esIOS) {
-                alert('Para instalar en iPhone o iPad:\n\n1. Toca Compartir en Safari.\n2. Elige Agregar a inicio.');
-            } else {
-                alert('Para instalar en PC o Android:\n\nAbre el menu del navegador (⋮) y selecciona Instalar aplicacion.');
-            }
-        });
-    }
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', iniciarBotonPWA);
-    } else {
-        iniciarBotonPWA();
-    }
-})();

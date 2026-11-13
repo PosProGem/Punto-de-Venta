@@ -18,5 +18,12 @@
       "type": "image/png",
       "purpose": "any"
     }
+  ],
+  "prefer_related_applications": false,
+  "related_applications": [
+    {
+      "platform": "webapp",
+      "url": "https://posprogem.github.io/Punto-de-Venta/manifest.json"
+    }
   ]
 }

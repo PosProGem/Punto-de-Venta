@@ -7,7 +7,7 @@
     <title>POS Precision v14 - Sistema Pro Completo</title>
     <link rel="manifest" href="./manifest.json">
     <meta name="theme-color" content="#0d6efd">
-    <link rel="apple-touch-icon" href="./icon-192.png">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2933/2933116.png">
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pocketbase/0.20.1/pocketbase.umd.js"></script>
@@ -311,7 +311,7 @@ body {
     <button class="flecha-scroll flecha-izq" onclick="moverCarrusel(this, -1)">◀</button>
     
     <!-- gap reducido a 5px -->
-    <div class="carrusel-movil" style="background: #fdfdfd; padding: 10px; border-radius: 8px; border: 1px solid #eee; gap: 5px; align-items: center;">
+    <div class="carrusel-movil" onwheel="if(event.deltaY !== 0){ this.scrollBy({ left: event.deltaY, behavior: 'auto' }); event.preventDefault(); }" style="background: #fdfdfd; padding: 10px; border-radius: 8px; border: 1px solid #eee; gap: 5px; align-items: center;">
         
         <!-- padding reducido a 10px y font-size a 13px -->
         <button class="btn-search" onclick="abrirBuscador()" style="border: none; padding: 8px 10px; border-radius: 5px; font-weight: bold; font-size: 13px; cursor: pointer; white-space: nowrap; flex-shrink: 0;">
@@ -383,25 +383,25 @@ body {
             <div class="carrusel-wrapper" style="margin-bottom: 15px;">
                 <button class="flecha-scroll flecha-izq" onclick="moverCarrusel(this, -1)">◀</button>
                 
-                <div class="carrusel-movil" style="background: #fdfdfd; padding: 10px; border-radius: 8px; border: 1px solid #eee; gap: 10px;">
-                    <button class="btn-search" onclick="abrirBuscador()" style="height: 40px; padding: 0 15px; font-size: 13px; font-weight: bold; border-radius: 5px; border: none; cursor: pointer; white-space: nowrap; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;">
+                <div class="carrusel-movil" onwheel="if(event.deltaY !== 0){ this.scrollBy({ left: event.deltaY, behavior: 'auto' }); event.preventDefault(); }" style="background: #fdfdfd; padding: 10px; border-radius: 8px; border: 1px solid #eee; gap: 10px; align-items: center;">
+                    <button class="btn-search" onclick="abrirBuscador()" style="height: 30px; padding: 0 15px; font-size: 13px; font-weight: bold; border-radius: 5px; border: none; cursor: pointer; white-space: nowrap; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;">
     🔍 BUSCAR
 </button>
 
-<button class="btn-search" onclick="abrirModalMovimiento()" style="background: var(--s); height: 40px; padding: 0 15px; font-size: 13px; font-weight: bold; border-radius: 5px; border: none; cursor: pointer; white-space: nowrap; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;">
+<button class="btn-search" onclick="abrirModalMovimiento()" style="background: var(--s); height: 30px; padding: 0 15px; font-size: 13px; font-weight: bold; border-radius: 5px; border: none; cursor: pointer; white-space: nowrap; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;">
     💵 MOVIMIENTO CAJA
 </button>
 
-<button onclick="pausarCompraActual()" style="background: var(--warning); height: 40px; padding: 0 15px; font-size: 13px; font-weight: bold; border-radius: 5px; border: none; cursor: pointer; white-space: nowrap; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;">
+<button onclick="pausarCompraActual()" style="background: var(--warning); height: 30px; padding: 0 15px; font-size: 13px; font-weight: bold; border-radius: 5px; border: none; cursor: pointer; white-space: nowrap; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;">
     ⏸️ Pausar Compra
 </button>
 
-<button onclick="window.abrirComprasPausadas()" style="background: var(--info); color: white; height: 40px; padding: 0 15px; font-size: 13px; font-weight: bold; border-radius: 5px; border: none; cursor: pointer; white-space: nowrap; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;">
+<button onclick="window.abrirComprasPausadas()" style="background: var(--info); color: white; height: 30px; padding: 0 15px; font-size: 13px; font-weight: bold; border-radius: 5px; border: none; cursor: pointer; white-space: nowrap; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;">
     📋 Pausadas (<span id="count_pausadas_compras">0</span>)
 </button>
 
 <!-- margin-left: auto mantiene este botón a la derecha en la PC -->
-<button onclick="abrirVisorCompras()" style="background: var(--danger); color: white; height: 40px; padding: 0 15px; font-size: 13px; font-weight: bold; border-radius: 5px; border: none; cursor: pointer; white-space: nowrap; flex-shrink: 0; margin-left: auto; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;">
+<button onclick="abrirVisorCompras()" style="background: var(--danger); color: white; height: 30px; padding: 0 15px; font-size: 13px; font-weight: bold; border-radius: 5px; border: none; cursor: pointer; white-space: nowrap; flex-shrink: 0; margin-left: auto; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;">
     🧾 Historial de Compras
 </button>
                 </div>
@@ -600,7 +600,7 @@ body {
         <!-- Flecha Izquierda -->
         <button class="flecha-scroll flecha-izq" onclick="moverCarrusel(this, -1)">◀</button>
         
-        <div class="carrusel-movil" style="display:flex; gap:10px; align-items:center;">
+        <div class="carrusel-movil" onwheel="if(event.deltaY !== 0){ this.scrollBy({ left: event.deltaY, behavior: 'auto' }); event.preventDefault(); }" style="display:flex; gap:10px; align-items:center;">
             
             
             
@@ -2684,6 +2684,6 @@ body {
 
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-<script src="app.js?v=17"></script>
+<script src="app.dev.js?v=20"></script>
 </body>
 </html>
