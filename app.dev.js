@@ -16597,3 +16597,53 @@ window.auditarCapacidadSaaS = async function() {
         console.error("❌ Error maestro al auditar capacidad:", error);
     }
 };
+(function() {
+    let eventoInstalacionPWA = null;
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        eventoInstalacionPWA = e;
+        const btn = document.getElementById('btn_instalar_pwa');
+        if (btn) btn.style.display = 'block';
+    });
+
+    function iniciarBotonPWA() {
+        const btn = document.getElementById('btn_instalar_pwa');
+        if (!btn) return;
+
+        const esIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        const yaInstalada = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+        const pideInstalar = new URLSearchParams(window.location.search).get('instalar') === '1';
+
+        if (yaInstalada) return;
+
+        if (esIOS || pideInstalar) {
+            btn.style.display = 'block';
+            if (pideInstalar) {
+                btn.style.background = '#10b981';
+                btn.innerText = '⬇️ Toca aquí para completar la instalación';
+            }
+        }
+
+        btn.addEventListener('click', async () => {
+            if (eventoInstalacionPWA) {
+                eventoInstalacionPWA.prompt();
+                const resultado = await eventoInstalacionPWA.userChoice;
+                if (resultado.outcome === 'accepted') {
+                    btn.style.display = 'none';
+                }
+                eventoInstalacionPWA = null;
+            } else if (esIOS) {
+                alert('Para instalar en iPhone o iPad:\n\n1. Toca Compartir en Safari.\n2. Elige Agregar a inicio.');
+            } else {
+                alert('Para instalar en PC o Android:\n\nAbre el menu del navegador (⋮) y selecciona Instalar aplicacion.');
+            }
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', iniciarBotonPWA);
+    } else {
+        iniciarBotonPWA();
+    }
+})();

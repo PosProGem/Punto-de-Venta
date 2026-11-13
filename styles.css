@@ -1149,9 +1149,9 @@ body:has(#login-screen:not([style*="display: none"]):not([style*="display:none"]
     }
 
     /* Repartición exacta del espacio para que coincidan encabezados y datos */
-    #tabla-buscador-aislada th:nth-child(1) { width: 15%; } /* Código */
-    #tabla-buscador-aislada th:nth-child(2) { width: 50%; } /* Nombre */
-    #tabla-buscador-aislada th:nth-child(3) { width: 15%; } /* Stock */
+    #tabla-buscador-aislada th:nth-child(1) { width: 25%; } /* Código */
+    #tabla-buscador-aislada th:nth-child(2) { width: 45%; } /* Nombre */
+    #tabla-buscador-aislada th:nth-child(3) { width: 10%; } /* Stock */
     #tabla-buscador-aislada th:nth-child(4) { width: 20%; } /* Precio */
 }
 
