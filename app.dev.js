@@ -135,7 +135,14 @@ const db = {
                         let tablaLocal = colName === "inventario" ? "productos" : colName;
 
                         // 1. CARGA INMEDIATA DESDE DISCO / MEMORIA (Blindaje 100% Offline)
-                        if (colName === "inventario" && typeof inv !== 'undefined' && Object.keys(inv).length > 0) {
+                        if (colName === "pausadas") {
+                            let zombies = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
+                            let localesLS = JSON.parse(localStorage.getItem('pos_pausadas_v6') || '[]');
+                            let fuente = (Array.isArray(pausadas) && pausadas.length > 0) ? pausadas : localesLS;
+                            cache = fuente
+                                .filter(p => p && p.id && !zombies.includes(String(p.id)))
+                                .map(p => ({ doc_id: String(p.id), data: p }));
+                        } else if (colName === "inventario" && typeof inv !== 'undefined' && Object.keys(inv).length > 0) {
                             cache = Object.keys(inv).map(k => ({ doc_id: k, data: inv[k] }));
                         } else if (window.dbLocal && dbLocal[tablaLocal]) {
                             try {
@@ -176,9 +183,17 @@ const db = {
 
                         // ⚡ 2. RADAR EN VIVO
                         pb.collection(colName).subscribe('*', function(e) {
-                            let key = e.record.doc_id || e.record.id;
+                            let key = String(e.record.doc_id || e.record.id);
                             let dataObj = (e.record.data && typeof e.record.data === 'object') ? e.record.data : e.record;
                             let tipoCambio = e.action === 'delete' ? 'removed' : (e.action === 'create' ? 'added' : 'modified');
+
+                            // 🛡️ ESCUDO OFFLINE PARA PAUSADAS: Ignorar versiones viejas de la nube si hay cambios locales sin subir
+                            if (colName === "pausadas") {
+                                let zombies = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
+                                if (zombies.includes(key)) return;
+                                let localPendiente = (Array.isArray(pausadas) ? pausadas : []).find(p => String(p.id) === key && p.sync_pendiente);
+                                if (localPendiente) return;
+                            }
 
                             if (e.action === 'create' || e.action === 'update') {
                                 let idx = cache.findIndex(x => (x.doc_id || x.id) === key);
@@ -444,6 +459,7 @@ if (typeof pb !== 'undefined') {
         }
     }).catch(err => console.warn("⚠️ No se pudo conectar el socket en tiempo real:", err));
 }
+
                             
 // ==========================================
 // 📦 DESCONTAR STOCK CORREGIDO (CON TIMESTAMP)
@@ -1110,6 +1126,13 @@ async function iniciarRadarVentasVeloz() {
         if (todasLasVentas.length > 0) {
             window.ventas = todasLasVentas; // Arreglo completo sin recortar para que el corte no falle
             console.log(`✅ ${todasLasVentas.length} ventas descargadas y aseguradas en disco.`);
+            
+            setTimeout(() => {
+                if (typeof window.ejecutarConsolidadorFantasma === 'function') {
+                    window.ejecutarConsolidadorFantasma();
+                }
+            }, 2000);
+
             if (typeof renderCorte === 'function') renderCorte();
         }
 
@@ -3758,14 +3781,32 @@ window.borrarArticuloVenta = function(index) {
     // Ejecutamos el borrado normal del carrito
     carV.splice(index, 1);
 
-    // 👇 AQUÍ AGREGAMOS LA CONDICIÓN 👇
-    // Si el carrito se quedó completamente vacío tras borrar este artículo, reseteamos la memoria de la pausa
+    // Si el carrito se quedó completamente vacío tras borrar este artículo, destruimos la pausa y reseteamos memoria
     if (carV.length === 0) {
+        if (window.idVentaPausadaActual) {
+            let idSobrante = String(window.idVentaPausadaActual);
+            pausadas = pausadas.filter(p => p && String(p.id) !== idSobrante);
+            localStorage.setItem("pos_pausadas_v6", JSON.stringify(pausadas));
+            if (window.dbLocal && dbLocal.pausadas) dbLocal.pausadas.delete(idSobrante).catch(() => {});
+
+            let pendientes = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
+            if (!pendientes.includes(idSobrante)) pendientes.push(idSobrante);
+            localStorage.setItem('pos_zombies_pausadas', JSON.stringify(pendientes));
+
+            if (typeof pb !== 'undefined' && navigator.onLine) {
+                pb.collection("pausadas").delete(idSobrante, { requestKey: null })
+                    .then(() => {
+                        let rest = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]').filter(z => z !== idSobrante);
+                        localStorage.setItem('pos_zombies_pausadas', JSON.stringify(rest));
+                    })
+                    .catch(() => {});
+            }
+        }
         window.historialVentaActual = [];
         window.idVentaPausadaActual = null;
         nombreVentaActual = "";
+        if (typeof actualizarContadorPausadas === 'function') actualizarContadorPausadas();
     }
-    // 👆 FIN DE LA CONDICIÓN 👆
     
     // Acomodamos la vista y el escáner
     if (typeof focusVentaIndex !== 'undefined') {
@@ -3976,72 +4017,166 @@ function abrirCobro() {
     setTimeout(() => document.getElementById('m_recibido').select(), 100); 
 }
 
-// ====================================================================
-// 📊 MOTOR ANALÍTICO: ACUMULADOR DIARIO EN TIEMPO REAL
-// ====================================================================
-async function actualizarAcumuladorDiario(venta, esAnulacion = false) {
-    let docId = venta.fecha + "_" + (venta.sucursal || "Matriz");
-    let factor = esAnulacion ? -1 : 1; // Si es anulación, el factor resta en lugar de sumar
+// ==========================================
+// 🚀 CONSOLIDADOR AUTOMÁTICO DE RESÚMENES DIARIOS
+// ==========================================
+// ==========================================
+// 🚀 CONSOLIDADOR AUTOMÁTICO DE RESÚMENES DIARIOS (CON AUTO-REPARACIÓN)
+// ==========================================
+window.ejecutarConsolidadorFantasma = async function() {
+    console.log("👻 Despertando Consolidador Fantasma...");
 
-    let tot = parseFloat(venta.total) || 0;
-    let esAbono = (venta.metodo || '').toLowerCase().includes('abono');
-    
-    // Los abonos no suman como "venta nueva" ni generan ganancia
-    let numV = (esAnulacion || esAbono) ? 0 : 1; 
-    if (!esAnulacion && !esAbono) numV = 1;
-    if (esAnulacion && !esAbono) numV = -1;
+    if (typeof pb === 'undefined') return;
 
-    let ganancia = 0;
-    if(venta.detalles && !esAbono) {
-        venta.detalles.forEach(d => {
-            let costo = parseFloat(d.costo) || 0;
-            ganancia += (parseFloat(d.subtotal) || 0) - (costo * parseFloat(d.can || 1));
+    let negocio_id = (window.usuarioActual && window.usuarioActual.negocio_id) ||
+                     (pb.authStore && pb.authStore.model && pb.authStore.model.negocio_id) ||
+                     (pb.authStore && pb.authStore.record && pb.authStore.record.negocio_id) ||
+                     window.negocio_id ||
+                     window.negocioId ||
+                     localStorage.getItem('negocio_id') ||
+                     localStorage.getItem('pos_negocio_id');
+
+    if (!negocio_id) return;
+
+    // Unir ventas locales + ventas descargadas de la nube sin duplicados
+    let mapaTodas = {};
+    (window.ventas || (typeof ventas !== 'undefined' ? ventas : [])).forEach(v => { if (v && v.id) mapaTodas[v.id] = v; });
+    (window.ventasHistoricasTemporales || []).forEach(v => { if (v && v.id) mapaTodas[v.id] = v; });
+    let listaVentas = Object.values(mapaTodas);
+
+    // 🛡️ ESCUDO ANTI-CORTE: Si solo tenemos el paquete inicial de 3,000 ventas,
+    // ignoramos la fecha más antigua porque casi seguro quedó cortada a la mitad.
+    let hayDescargaNube = (window.ventasHistoricasTemporales && window.ventasHistoricasTemporales.length > 0);
+    let fechasValidas = listaVentas.map(v => v.fecha).filter(Boolean).sort();
+    let fechaCorteMinima = (!hayDescargaNube && fechasValidas.length > 0) ? fechasValidas[0] : null;
+
+    let hoy = (typeof getFechaLocal === 'function') ? getFechaLocal() : new Date().toISOString().split('T')[0];
+    let resumenesPendientes = {};
+
+    listaVentas.forEach(v => {
+        if (!v) return;
+        let vFecha = v.fecha || hoy;
+        if (vFecha === hoy || v.anulada) return;
+        if (fechaCorteMinima && vFecha === fechaCorteMinima) return; // Saltar día cortado
+
+        let vSuc = String(v.sucursal || "Matriz").replace(/📍/g, '').trim();
+        let vCaj = String(v.cajero || "Admin").trim();
+        let docId = `${vFecha}_${vSuc}_${vCaj}`;
+
+        if (!resumenesPendientes[docId]) {
+            resumenesPendientes[docId] = {
+                fecha: vFecha, sucursal: vSuc, cajero: vCaj,
+                total_ventas: 0, ganancia: 0, efectivo: 0, tarjeta: 0,
+                transferencia: 0, credito: 0, num_tickets: 0, top_productos: {}
+            };
+        }
+
+        let res = resumenesPendientes[docId];
+        let tVentaTicket = parseFloat(v.total) || 0;
+        let esAbono = (v.metodo || '').toLowerCase().includes('abono');
+
+        if (!esAbono) {
+            res.num_tickets++;
+            res.total_ventas += tVentaTicket;
+        }
+
+        if (v.pagos && Array.isArray(v.pagos) && v.pagos.length > 0) {
+            v.pagos.forEach(p => {
+                let m = parseFloat(p.montoAplicado) || 0;
+                let met = String(p.metodo || "").toLowerCase();
+                if (met.includes('efectivo')) res.efectivo += m;
+                else if (met.includes('tarjeta')) res.tarjeta += m;
+                else if (met.includes('transferencia')) res.transferencia += m;
+                else if (met.includes('crédito') || met.includes('credito')) res.credito += m;
+            });
+        } else {
+            let metStr = String(v.metodo || "").toLowerCase();
+            if (metStr.includes('efectivo')) res.efectivo += tVentaTicket;
+            else if (metStr.includes('tarjeta')) res.tarjeta += tVentaTicket;
+            else if (metStr.includes('transferencia')) res.transferencia += tVentaTicket;
+            else if (metStr.includes('crédito') || metStr.includes('credito')) res.credito += tVentaTicket;
+        }
+
+        let utilTicket = 0;
+        let listaItems = v.detalles || (Array.isArray(v.items) ? v.items : []);
+        if (listaItems.length > 0 && !esAbono) {
+            listaItems.forEach(d => {
+                let cantItem = parseFloat(d.can) || 0;
+                if (cantItem > 0) {
+                    let costoU = parseFloat(d.costo) || parseFloat(d.cos) || 0;
+                    if (costoU === 0 && typeof inv !== 'undefined' && inv[d.cod]) {
+                        let cBase = parseFloat(inv[d.cod].cos_promedio !== undefined ? inv[d.cod].cos_promedio : inv[d.cod].cos) || 0;
+                        let ivaP = parseFloat(inv[d.cod].iva) || 0;
+                        costoU = cBase * (1 + (ivaP / 100));
+                    }
+                    let subt = parseFloat(d.subtotal) || 0;
+                    if (subt === 0) {
+                        let pv = parseFloat(d.pv) || (typeof inv !== 'undefined' && inv[d.cod] ? parseFloat(inv[d.cod].pv) : 0) || 0;
+                        subt = cantItem * pv;
+                    }
+                    let gananciaArticulo = subt - (costoU * cantItem);
+                    utilTicket += gananciaArticulo;
+
+                    if (!res.top_productos[d.cod]) {
+                        res.top_productos[d.cod] = { nombre: d.nom || 'Desc', cantidad: 0, total: 0, ganancia: 0 };
+                    }
+                    res.top_productos[d.cod].cantidad += cantItem;
+                    res.top_productos[d.cod].total += subt;
+                    res.top_productos[d.cod].ganancia += gananciaArticulo;
+                }
+            });
+        }
+        res.ganancia += utilTicket;
+    });
+
+    let docsGenerados = Object.keys(resumenesPendientes);
+    if (docsGenerados.length === 0) return;
+
+    try {
+        let yaSubidos = await pb.collection('resumenes_diarios').getFullList({
+            filter: `negocio_id = '${negocio_id}'`,
+            requestKey: null
         });
+        let mapaSubidos = {};
+        yaSubidos.forEach(r => mapaSubidos[r.doc_id] = r);
+
+        for (let docId of docsGenerados) {
+            let datosDoc = resumenesPendientes[docId];
+            let payload = {
+                doc_id: docId,
+                negocio_id: negocio_id,
+                data: {
+                    fecha: datosDoc.fecha,
+                    sucursal: datosDoc.sucursal,
+                    cajero: datosDoc.cajero,
+                    total_ventas: datosDoc.total_ventas,
+                    ganancia: datosDoc.ganancia,
+                    efectivo: datosDoc.efectivo,
+                    tarjeta: datosDoc.tarjeta,
+                    transferencia: datosDoc.transferencia,
+                    credito: datosDoc.credito,
+                    num_tickets: datosDoc.num_tickets,
+                    top_productos: datosDoc.top_productos
+                }
+            };
+
+            if (!mapaSubidos[docId]) {
+                await pb.collection('resumenes_diarios').create(payload, { requestKey: null });
+                console.log(`☁️ Resumen creado: ${docId}`);
+            } else {
+                // 🔄 Auto-reparación: Si ahora tenemos más tickets para ese turno que los guardados, actualizar
+                let regPrevio = mapaSubidos[docId];
+                let dPrev = typeof regPrevio.data === 'string' ? JSON.parse(regPrevio.data) : regPrevio.data;
+                if (datosDoc.num_tickets > (dPrev?.num_tickets || 0)) {
+                    await pb.collection('resumenes_diarios').update(regPrevio.id, payload, { requestKey: null });
+                    console.log(`🔄 Resumen reparado con día completo: ${docId} (${datosDoc.num_tickets} tickets)`);
+                }
+            }
+        }
+    } catch (e) {
+        console.warn("⚠️ Error en el consolidador fantasma:", e);
     }
-
-    let ef = 0, ta = 0, tr = 0, cr = 0;
-    if (venta.pagos && Array.isArray(venta.pagos) && venta.pagos.length > 0) {
-        venta.pagos.forEach(p => {
-            let m = parseFloat(p.montoAplicado) || 0;
-            if(p.metodo === 'Efectivo') ef += m;
-            else if(p.metodo === 'Tarjeta') ta += m;
-            else if(p.metodo === 'Transferencia') tr += m;
-            else if(p.metodo === 'Crédito') cr += m;
-        });
-    } else {
-        let mStr = venta.metodo || '';
-        if(mStr.includes('Efectivo')) ef += tot;
-        else if(mStr.includes('Tarjeta')) ta += tot;
-        else if(mStr.includes('Transferencia')) tr += tot;
-        else if(mStr.includes('Crédito')) cr += tot;
-    }
-
-    // 1. Cargamos de la memoria local para no depender del internet y evitar sobrescrituras
-    let memoriaAcumuladores = JSON.parse(localStorage.getItem('pos_resumenes_diarios') || "{}");
-    let acumulador = memoriaAcumuladores[docId] || {
-        fecha: venta.fecha, sucursal: venta.sucursal || "Matriz",
-        ventas_totales: 0, ganancia_neta: 0, num_ventas: 0,
-        efectivo: 0, tarjeta: 0, transferencia: 0, credito: 0
-    };
-
-    // 2. Ejecutamos la suma (o resta) matemática
-    if(!esAbono) acumulador.ventas_totales = (parseFloat(acumulador.ventas_totales) || 0) + (tot * factor);
-    acumulador.ganancia_neta = (parseFloat(acumulador.ganancia_neta) || 0) + (ganancia * factor);
-    acumulador.num_ventas = (parseInt(acumulador.num_ventas) || 0) + numV;
-
-    acumulador.efectivo = (parseFloat(acumulador.efectivo) || 0) + (ef * factor);
-    acumulador.tarjeta = (parseFloat(acumulador.tarjeta) || 0) + (ta * factor);
-    acumulador.transferencia = (parseFloat(acumulador.transferencia) || 0) + (tr * factor);
-    acumulador.credito = (parseFloat(acumulador.credito) || 0) + (cr * factor);
-
-    // 3. Guardamos los nuevos totales en el disco duro (por seguridad)
-    memoriaAcumuladores[docId] = acumulador;
-    localStorage.setItem('pos_resumenes_diarios', JSON.stringify(memoriaAcumuladores));
-
-    // 4. Disparamos la actualización a PocketBase de forma silenciosa e instantánea
-    db.collection("resumenes_diarios").doc(docId).set(acumulador);
-    console.log(`📊 Acumulador Analítico [${docId}] actualizado en tiempo real.`);
-}
+};
 // =========================================================================
 // 📦 LECTOR UNIVERSAL DE STOCK MULTI-SUCURSAL
 // =========================================================================
@@ -4470,11 +4605,31 @@ window.confirmarVenta = async function(cambioFinal = 0) {
             }
         }
 
-        carV = []; nombreVentaActual = ""; 
-        // Agrega esto justo después de donde dice carV = []; o al terminar de cobrar/cancelar
-window.historialVentaActual = [];
-window.idVentaPausadaActual = null;
-nombreVentaActual = "";
+        if (window.idVentaPausadaActual) {
+            let idSobrante = String(window.idVentaPausadaActual);
+            pausadas = pausadas.filter(p => p && String(p.id) !== idSobrante);
+            localStorage.setItem("pos_pausadas_v6", JSON.stringify(pausadas));
+            if (window.dbLocal && dbLocal.pausadas) dbLocal.pausadas.delete(idSobrante).catch(() => {});
+
+            let pendientes = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
+            if (!pendientes.includes(idSobrante)) pendientes.push(idSobrante);
+            localStorage.setItem('pos_zombies_pausadas', JSON.stringify(pendientes));
+
+            if (typeof pb !== 'undefined' && navigator.onLine) {
+                pb.collection("pausadas").delete(idSobrante, { requestKey: null })
+                    .then(() => {
+                        let rest = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]').filter(z => z !== idSobrante);
+                        localStorage.setItem('pos_zombies_pausadas', JSON.stringify(rest));
+                    })
+                    .catch(() => {});
+            }
+        }
+
+        carV = []; 
+        window.historialVentaActual = [];
+        window.idVentaPausadaActual = null;
+        nombreVentaActual = "";
+        if (typeof actualizarContadorPausadas === 'function') actualizarContadorPausadas();
         if (typeof forceWholesale !== 'undefined') forceWholesale = false; 
         if (typeof pagosCobro !== 'undefined') pagosCobro.length = 0; window.pagosCobro = [];
         if (typeof restanteCobro !== 'undefined') restanteCobro = 0; window.restanteCobro = 0;
@@ -4563,7 +4718,6 @@ function abrirGranel(c) {
     setTimeout(() => { cajaKilos.focus(); cajaKilos.select(); }, 100); 
 }
 
-// Pausadas
 // =========================================================
 // 🛑 INICIO DEL BLOQUE MAESTRO DE VENTAS PAUSADAS
 // =========================================================
@@ -4576,97 +4730,173 @@ function generarIdPB() {
     return id;
 }
 
+// 🧹 LIMPIADOR EN SEGUNDO PLANO DE TICKETS BORRADOS SIN INTERNET
+// 🧹 LIMPIADOR EN SEGUNDO PLANO DE TICKETS BORRADOS SIN INTERNET
+(function iniciarLimpiadorZombies() {
+    const purgarPendientes = async () => {
+        let pendientes = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
+        if (pendientes.length === 0) return;
+
+        // 1. Asegurar que tampoco existan en memoria ni localStorage
+        if (Array.isArray(pausadas)) {
+            pausadas = pausadas.filter(p => p && !pendientes.includes(String(p.id)) && !pendientes.includes(String(p.doc_id)));
+            localStorage.setItem("pos_pausadas_v6", JSON.stringify(pausadas));
+            if (typeof actualizarContadorPausadas === 'function') actualizarContadorPausadas();
+        }
+
+        // 2. Si ya volvió el internet, buscarlos por id o doc_id y eliminarlos definitivamente de PocketBase
+        if (typeof pb !== 'undefined' && navigator.onLine) {
+            let restantes = [];
+            for (let idZ of pendientes) {
+                let borradoReal = false;
+                try {
+                    await pb.collection("pausadas").delete(idZ, { requestKey: null });
+                    borradoReal = true;
+                } catch (e) {
+                    if (e && e.status === 404) {
+                        try {
+                            let coincidencias = await pb.collection("pausadas").getFullList({
+                                filter: `id="${idZ}" || doc_id="${idZ}"`,
+                                requestKey: null
+                            });
+                            for (let reg of coincidencias) {
+                                await pb.collection("pausadas").delete(reg.id, { requestKey: null });
+                            }
+                            borradoReal = true;
+                        } catch (errBusca) {
+                            if (errBusca && errBusca.status === 404) borradoReal = true;
+                        }
+                    }
+                }
+                if (!borradoReal) restantes.push(idZ);
+            }
+            localStorage.setItem('pos_zombies_pausadas', JSON.stringify(restantes));
+        }
+    };
+
+    window.addEventListener('online', purgarPendientes);
+    setTimeout(purgarPendientes, 4000);
+})();
+
 // =========================================================
-// 1. PAUSAR VENTA (CON ENVOLTORIO "DATA" PARA POCKETBASE)
+// 1. PAUSAR VENTA (INSTANTÁNEO OFFLINE Y SIN DUPLICADOS)
 // =========================================================
 async function preguntarPausar() { 
     if (!carV || carV.length === 0) return; 
+    if (window._pausandoEnCurso) return;
 
     let n = prompt("Nombre venta pausada:", nombreVentaActual || "Cliente " + (pausadas.length + 1)); 
-    if (!n) return;
+    if (!n || !n.trim()) return;
 
-    // Si ya era una pausa recuperada, usamos su ID; si no, generamos uno nuevo.
-    let idUnico = window.idVentaPausadaActual ? String(window.idVentaPausadaActual) : generarIdPB(); 
-    
-    let cajeroActual = (typeof usuarioActual !== 'undefined' && usuarioActual) ? usuarioActual : 'Desconocido';
-    let totalActual = document.getElementById('v_total') ? document.getElementById('v_total').innerText : '0.00';
-    let horaPausa = new Date().toLocaleTimeString('es-MX', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    window._pausandoEnCurso = true;
 
-    if (typeof registrarEventoVenta === 'function') {
-        registrarEventoVenta("PAUSA", `Pausa por [${cajeroActual}]. Total: $${totalActual}. Nombre: "${n}"`);
-    }
+    try {
+        let idUnico = window.idVentaPausadaActual ? String(window.idVentaPausadaActual) : generarIdPB(); 
+        let sucActualStr = String(typeof sucursalActual !== 'undefined' ? sucursalActual : "Matriz").replace(/📍/g, '').trim();
+        let cajeroActual = (typeof usuarioActual !== 'undefined' && usuarioActual) ? usuarioActual : 'Desconocido';
+        let totalActual = document.getElementById('v_total') ? document.getElementById('v_total').innerText : '0.00';
+        let horaPausa = new Date().toLocaleTimeString('es-MX', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-    let itemsLimpios = carV.map(item => {
-        let q = item.can || item.cant || item.cantidad || 1;
-        return { ...item, can: q, cant: q, cantidad: q };
-    });
-
-    // Este es el objeto que usa tu navegador localmente
-    let nuevaPausada = { 
-        id: idUnico, 
-        nom: n.trim(), 
-        total: totalActual, 
-        items: itemsLimpios, 
-        sucursal: typeof sucursalActual !== 'undefined' ? sucursalActual : "Matriz",
-        ultima_pausa_hora: horaPausa,
-        cajero_pauso: cajeroActual,
-        caja_negra: [...(window.historialVentaActual || [])]
-    }; 
-
-    // Actualización local
-    let idx = pausadas.findIndex(p => p.id === idUnico);
-    if(idx !== -1) {
-        pausadas[idx] = nuevaPausada; 
-    } else {
-        pausadas.push(nuevaPausada); 
-    }
-    localStorage.setItem("pos_pausadas_v6", JSON.stringify(pausadas)); 
-    
-    // 📦 EL PARCHE CLAVE: El envoltorio que exige tu colección de PocketBase
-    let payloadNube = {
-        id: idUnico,           // Forzamos el ID nativo para poder editarlo/borrarlo después
-        doc_id: idUnico,       // Para que el Radar viejo no se confunda
-        data: nuevaPausada     // 👈 AQUÍ VAN LOS ARTÍCULOS Y EL TOTAL (Para que no quede en null)
-    };
-
-    // ☁️ UPSERT A LA NUBE
-    if (typeof pb !== 'undefined' && navigator.onLine) {
-        try {
-            await pb.collection("pausadas").update(idUnico, payloadNube, { requestKey: null });
-        } catch (err) {
-            pb.collection("pausadas").create(payloadNube, { requestKey: null }).catch(e => console.warn("Falla nube:", e));
+        if (typeof registrarEventoVenta === 'function') {
+            registrarEventoVenta("PAUSA", `Pausa por [${cajeroActual}]. Total: $${totalActual}. Nombre: "${n.trim()}"`);
         }
+
+        let itemsLimpios = carV.map(item => {
+            let q = item.can || item.cant || item.cantidad || 1;
+            return { ...item, can: q, cant: q, cantidad: q };
+        });
+
+        let nuevaPausada = { 
+            id: idUnico, 
+            doc_id: idUnico,
+            nom: n.trim(), 
+            total: totalActual, 
+            items: itemsLimpios, 
+            sucursal: sucActualStr,
+            ultima_pausa_hora: horaPausa,
+            cajero_pauso: cajeroActual,
+            caja_negra: [...(window.historialVentaActual || [])],
+            sync_pendiente: true
+        }; 
+
+        let zombies = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]').filter(z => z !== idUnico);
+        localStorage.setItem('pos_zombies_pausadas', JSON.stringify(zombies));
+
+        let idx = pausadas.findIndex(p => String(p.id) === idUnico);
+        if (idx !== -1) {
+            pausadas[idx] = nuevaPausada; 
+        } else {
+            pausadas.push(nuevaPausada); 
+        }
+        localStorage.setItem("pos_pausadas_v6", JSON.stringify(pausadas)); 
+        if (window.dbLocal && dbLocal.pausadas) {
+            dbLocal.pausadas.put({ id: idUnico, doc_id: idUnico, data: nuevaPausada }).catch(() => {});
+        }
+
+        if (typeof limpiarCajaNegra === 'function') {
+            limpiarCajaNegra();
+        } else {
+            window.historialVentaActual = [];
+        }
+
+        window._ultimaPausaActivaId = null; // 👈 Indica que se está re-pausando (no cobrando ni vaciando)
+        carV = []; 
+        forceWholesale = false; 
+        nombreVentaActual = "";
+        window.idVentaPausadaActual = null;
+
+        let badgeMayoreo = document.getElementById('v_mayoreo_status');
+        if (badgeMayoreo) { 
+            badgeMayoreo.innerText = "MAYOREO: DESACTIVADO"; 
+            badgeMayoreo.style.background = "#444"; 
+            badgeMayoreo.style.color = "#bbb"; 
+        }
+
+        if (typeof window.renderV === 'function') window.renderV(); 
+        if (typeof actualizarContadorPausadas === 'function') actualizarContadorPausadas(); 
+
+        setTimeout(() => { 
+            let inputEscaner = document.getElementById('v_cod'); 
+            if (inputEscaner) { inputEscaner.value = ''; inputEscaner.focus(); } 
+        }, 150);
+
+        if (typeof pb !== 'undefined' && navigator.onLine) {
+            let negId = (pb.authStore && (pb.authStore.record?.negocio_id || pb.authStore.model?.negocio_id)) 
+                        || (typeof negocio_id !== 'undefined' ? negocio_id : '');
+
+            let payloadNube = {
+                id: idUnico,
+                doc_id: idUnico,
+                negocio_id: negId,
+                data: { ...nuevaPausada, sync_pendiente: false }
+            };
+
+            const marcarSincronizada = () => {
+                let itemLocal = pausadas.find(p => String(p.id) === idUnico);
+                if (itemLocal) {
+                    itemLocal.sync_pendiente = false;
+                    localStorage.setItem("pos_pausadas_v6", JSON.stringify(pausadas));
+                    if (window.dbLocal && dbLocal.pausadas) {
+                        dbLocal.pausadas.put({ id: idUnico, doc_id: idUnico, data: itemLocal }).catch(() => {});
+                    }
+                }
+            };
+
+            pb.collection("pausadas").update(idUnico, payloadNube, { requestKey: null })
+                .then(marcarSincronizada)
+                .catch(() => {
+                    pb.collection("pausadas").create(payloadNube, { requestKey: null })
+                        .then(marcarSincronizada)
+                        .catch(e => console.warn("⏳ Pausa en cola offline:", e));
+                });
+        }
+    } finally {
+        window._pausandoEnCurso = false;
     }
-    
-    if (typeof limpiarCajaNegra === 'function') {
-        limpiarCajaNegra();
-    } else {
-        window.historialVentaActual = [];
-    }
-
-    carV = []; 
-    forceWholesale = false; 
-    nombreVentaActual = "";
-    window.idVentaPausadaActual = null; 
-
-    let badgeMayoreo = document.getElementById('v_mayoreo_status');
-    if (badgeMayoreo) { 
-        badgeMayoreo.innerText = "MAYOREO: DESACTIVADO"; 
-        badgeMayoreo.style.background = "#444"; 
-        badgeMayoreo.style.color = "#bbb"; 
-    }
-
-    if (typeof window.renderV === 'function') window.renderV(); 
-    if (typeof actualizarContadorPausadas === 'function') actualizarContadorPausadas(); 
-
-    setTimeout(() => { 
-        let inputEscaner = document.getElementById('v_cod'); 
-        if (inputEscaner) { inputEscaner.value = ''; inputEscaner.focus(); } 
-    }, 150);
 }
 
 // =========================================================
-// 2. RETOMAR VENTA (SIN BORRARLA PREMATURAMENTE)
+// 2. RETOMAR VENTA (CONSERVANDO SU ID REAL)
 // =========================================================
 window.retomarVenta = function(idBuscar) { 
     let idStr = String(idBuscar);
@@ -4688,10 +4918,6 @@ window.retomarVenta = function(idBuscar) {
         let cajero = (typeof usuarioActual !== 'undefined' && usuarioActual) ? usuarioActual : 'Desconocido';
         registrarEventoVenta("REANUDAR", `Venta "${nombreVentaActual}" despausada por [${cajero}]`);
     }
-
-    // 🚨 ELIMINAMOS EL BLOQUE DE BORRADO EN LA NUBE 🚨
-    // Ya no hacemos el .splice() ni el pb.collection().delete() aquí.
-    // La venta seguirá existiendo en PocketBase como respaldo hasta que se cobre o se vacíe el carrito.
 
     if (typeof window.renderV === 'function') window.renderV();
     if (typeof cerrarModales === 'function') cerrarModales();
@@ -4727,14 +4953,19 @@ function confirmarEliminarPausada() {
         pausadas.splice(i, 1);
         localStorage.setItem("pos_pausadas_v6", JSON.stringify(pausadas));
 
+        // Registrar en libreta de zombies para asegurar borrado aunque falle el internet
+        let pendientes = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
+        if (!pendientes.includes(idReal)) pendientes.push(idReal);
+        localStorage.setItem('pos_zombies_pausadas', JSON.stringify(pendientes));
+
         // ☁️ BORRADO DEFINITIVO EN LA NUBE
         if (typeof pb !== 'undefined' && navigator.onLine) {
-            let payloadFantasma = { data: { nom: 'FANTASMA', items: [] } };
-            pb.collection("pausadas").update(idReal, payloadFantasma, { requestKey: null })
-              .then(() => pb.collection("pausadas").delete(idReal, { requestKey: null }).catch(() => {}))
-              .catch(() => {
-                  pb.collection("pausadas").delete(idReal, { requestKey: null }).catch(() => {});
-              });
+            pb.collection("pausadas").delete(idReal, { requestKey: null })
+                .then(() => {
+                    let rest = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]').filter(z => z !== idReal);
+                    localStorage.setItem('pos_zombies_pausadas', JSON.stringify(rest));
+                })
+                .catch(() => {});
         }
     }
 
@@ -4757,6 +4988,7 @@ function confirmarEliminarPausada() {
         cerrarModales(); 
     }
 }
+
 // =========================================================
 // 🛡️ PARCHE AUTO-DESTRUCTOR (CAZADOR DE ZOMBIES)
 // =========================================================
@@ -4764,35 +4996,44 @@ if (!window.renderV_original_blindado) {
     window.renderV_original_blindado = window.renderV;
     
     window.renderV = function() {
-        if (window.idVentaPausadaActual && (!window.carV || window.carV.length === 0)) {
-            
-            let idSobrante = window.idVentaPausadaActual;
+        let carritoActivo = (typeof carV !== 'undefined' && Array.isArray(carV)) ? carV : (window.carV || []);
+
+        if (window.idVentaPausadaActual && carritoActivo.length === 0) {
+            let idSobrante = String(window.idVentaPausadaActual);
             window.idVentaPausadaActual = null; 
             window.nombreVentaActual = "";
-            
-            if (typeof pb !== 'undefined') {
-                if (navigator.onLine) {
-                    // Hay internet, lo borramos directo
-                    (async () => {
+
+            // 1. Quitar de la lista local y contador al instante (con o sin internet)
+            if (Array.isArray(pausadas)) {
+                pausadas = pausadas.filter(p => p && String(p.id) !== idSobrante);
+                localStorage.setItem("pos_pausadas_v6", JSON.stringify(pausadas));
+                if (typeof actualizarContadorPausadas === 'function') actualizarContadorPausadas();
+            }
+            if (window.dbLocal && dbLocal.pausadas) {
+                dbLocal.pausadas.delete(idSobrante).catch(() => {});
+            }
+
+            // 2. Anotar en libreta de zombies y borrar de la nube
+            let pendientes = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
+            if (!pendientes.includes(idSobrante)) pendientes.push(idSobrante);
+            localStorage.setItem('pos_zombies_pausadas', JSON.stringify(pendientes));
+
+            if (typeof pb !== 'undefined' && navigator.onLine) {
+                (async () => {
+                    try {
+                        await pb.collection("pausadas").delete(idSobrante, { requestKey: null });
+                    } catch (e) {
                         try {
-                            await pb.collection("pausadas").delete(idSobrante, { requestKey: null });
-                            console.log("💥 Venta pausada vaciada y destruida localmente.");
-                        } catch (e) {
-                            try {
-                                let encontrado = await pb.collection("pausadas").getFirstListItem(`id="${idSobrante}" || doc_id="${idSobrante}"`, { requestKey: null });
-                                if (encontrado && encontrado.id) {
-                                    await pb.collection("pausadas").delete(encontrado.id, { requestKey: null });
-                                }
-                            } catch (errBusqueda) {}
-                        }
-                    })();
-                } else {
-                    // 📡 NO HAY INTERNET: Lo anotamos en la libreta de zombies para matarlo después
-                    console.log("📴 Sin conexión. Guardando ticket zombie para borrarlo luego.");
-                    let pendientes = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
-                    if (!pendientes.includes(idSobrante)) pendientes.push(idSobrante);
-                    localStorage.setItem('pos_zombies_pausadas', JSON.stringify(pendientes));
-                }
+                            let encontrado = await pb.collection("pausadas").getFirstListItem(`id="${idSobrante}" || doc_id="${idSobrante}"`, { requestKey: null });
+                            if (encontrado && encontrado.id) {
+                                await pb.collection("pausadas").delete(encontrado.id, { requestKey: null });
+                            }
+                        } catch (errBusqueda) {}
+                    } finally {
+                        let rest = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]').filter(z => z !== idSobrante);
+                        localStorage.setItem('pos_zombies_pausadas', JSON.stringify(rest));
+                    }
+                })();
             }
         }
         
@@ -4805,32 +5046,31 @@ if (!window.renderV_original_blindado) {
 // =========================================================
 // VARIABLES
 // =========================================================
-
 let pausadasFiltradas = [];
-
 let focusPausadaIndex = 0;
-
 let idPausadaAEliminar = null;
 
-
-
 // =========================================================
-// ABRIR PAUSADAS
-// =========================================================
-
-// =========================================================
-// 1. ABRIR PAUSADAS (CON FILTRO ESTRICTO)
+// 1. ABRIR PAUSADAS (CON FILTRO ESTRICTO Y ANTI-ZOMBIES)
 // =========================================================
 function abrirPausadas() { 
     if(!Array.isArray(pausadas)) pausadas = [];
 
+    let zombies = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
     let mapa = new Map();
     pausadas.forEach(p => {
         if(!p) return;
-        if(!p.id) p.id = String(Date.now()) + Math.random();
-        mapa.set(String(p.id), p);
+        let idNorm = String(p.id || p.doc_id || '').trim();
+        if(!idNorm) {
+            idNorm = (typeof generarIdPB === 'function') ? generarIdPB() : String(Date.now()) + Math.random();
+        }
+        if(zombies.includes(idNorm)) return; // Ignorar eliminadas offline
+        p.id = idNorm;
+        p.doc_id = idNorm;
+        mapa.set(idNorm, p);
     });
     pausadas = Array.from(mapa.values());
+    localStorage.setItem("pos_pausadas_v6", JSON.stringify(pausadas));
 
     if(carV && carV.length > 0) {
         if(confirm("⚠️ TIENES UNA VENTA EN CURSO.\n\n¿Deseas poner esta venta en PAUSA primero?")) {
@@ -4866,216 +5106,155 @@ function actualizarContadorPausadas() {
     let lbl = document.getElementById('count_pausadas');
     if(!lbl) return;
 
+    let zombies = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
     let mapa = new Map();
     pausadas.forEach(p => {
-        if(p && p.id) mapa.set(String(p.id), p);
+        if(!p) return;
+        let idNorm = String(p.id || p.doc_id || '').trim();
+        if(idNorm && !zombies.includes(idNorm)) {
+            p.id = idNorm;
+            mapa.set(idNorm, p);
+        }
     });
     pausadas = Array.from(mapa.values());
 
-    // 🌟 FILTRO ESTRICTO DE SUCURSAL
+    // 🌟 FILTRO ESTRICTO DE SUCURSAL (excluyendo la que ya está abierta en pantalla)
     let sucLimpia = String(typeof sucursalActual !== 'undefined' ? sucursalActual : 'Matriz').replace(/📍/g, '').trim().toLowerCase();
+    let abiertaActual = window.idVentaPausadaActual ? String(window.idVentaPausadaActual) : null;
 
     lbl.innerText = pausadas.filter(p => {
         if(!p || p.nom === "FANTASMA") return false;
+        if(abiertaActual && String(p.id) === abiertaActual) return false;
         let sucVenta = String(p.sucursal || 'Matriz').replace(/📍/g, '').trim().toLowerCase();
         return sucVenta === sucLimpia;
     }).length;
 }
-// =========================================================
-// TABLA
-// =========================================================
 
+// =========================================================
+// TABLA (SOLO DIBUJO, SIN SUSCRIPCIONES DENTRO)
+// =========================================================
 function renderTablaPausadas() {
+    let html = pausadasFiltradas.map((p, index) => {
+        let isFocused = index === focusPausadaIndex;
+        let bgRow = isFocused ? 'background:#e0f0ff; border-left: 4px solid var(--info);' : '';
 
-    let html =
-        pausadasFiltradas
-            .map((p, index) => {
-
-                let isFocused =
-                    index === focusPausadaIndex;
-
-
-                let bgRow =
-                    isFocused
-                        ? 'background:#e0f0ff; border-left: 4px solid var(--info);'
-                        : '';
-
-
-                return `
-                    <tr
-                        style="cursor:pointer; ${bgRow}"
-                        onclick="retomarVenta('${String(p.id)}')"
+        return `
+            <tr style="cursor:pointer; ${bgRow}" onclick="retomarVenta('${String(p.id)}')">
+                <td>
+                    ${isFocused ? '👉 ' : ''}
+                    <b>${p.nom || 'Venta'}</b>
+                </td>
+                <td>${(p.items || []).length} art.</td>
+                <td>$${parseFloat(p.total || 0).toFixed(2)}</td>
+                <td>
+                    <button
+                        style="background:var(--danger); color:white; border:none; padding:5px 10px; border-radius:5px;"
+                        onclick="event.stopPropagation(); eliminarPausada('${String(p.id)}')"
                     >
+                        ✕
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
 
-                        <td>
-                            ${isFocused ? '👉 ' : ''}
-                            <b>
-                                ${p.nom || 'Venta'}
-                            </b>
-                        </td>
-
-                        <td>
-                            ${(p.items || []).length} art.
-                        </td>
-
-                        <td>
-                            $${parseFloat(
-                                p.total || 0
-                            ).toFixed(2)}
-                        </td>
-
-                        <td>
-
-                            <button
-                                style="
-                                    background:var(--danger);
-                                    color:white;
-                                    border:none;
-                                    padding:5px 10px;
-                                    border-radius:5px;
-                                "
-                                onclick="
-                                    event.stopPropagation();
-                                    eliminarPausada('${String(p.id)}')
-                                "
-                            >
-                                ✕
-                            </button>
-
-                        </td>
-
-                    </tr>
-                `;
-
-            })
-            .join('');
-
-
-    let lista =
-        document.getElementById(
-            'p_lista'
-        );
-
-
+    let lista = document.getElementById('p_lista');
     if(lista) {
         lista.innerHTML = html;
     }
-    // =========================================================
-// 📡 ESCÁNER EN VIVO: Sincronización celular-PC al instante
+}
+
+// 📡 ESCÁNER EN VIVO DE PAUSADAS (BLINDADO CONTRA ZOMBIES Y EDICIONES OFFLINE)
 // =========================================================
-if (typeof pb !== 'undefined') {
-    // Escuchamos cualquier cambio en la colección de pausadas
+(function iniciarRadarPausadas() {
+    if (window._radarPausadasActivo) return;
+
+    if (typeof pb === 'undefined' || !pb.authStore || !pb.authStore.isValid) {
+        return setTimeout(iniciarRadarPausadas, 1500);
+    }
+
+    window._radarPausadasActivo = true;
+
+    // Suscripción en tiempo real (1 sola instancia global)
     pb.collection('pausadas').subscribe('*', function (e) {
-        
-        // 1. Si la PC (u otro cajero) CREÓ o ACTUALIZÓ una venta pausada:
+        if (!Array.isArray(pausadas)) pausadas = [];
+        let zombies = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
+        let idReal = String(e.record.doc_id || e.record.id || (e.record.data && e.record.data.id) || '').trim();
+
         if (e.action === 'create' || e.action === 'update') {
-            let registroNube = e.record.data || e.record; // Dependiendo de cómo guardes el JSON
-            
-            // Buscamos si ya la tenemos en la memoria del celular
-            let index = pausadas.findIndex(p => String(p.id) === String(registroNube.id) || String(p.id) === String(e.record.doc_id));
-            
+            if (!idReal || zombies.includes(idReal)) return;
+
+            // 🛡️ Si esta cuenta tiene cambios locales sin subir, ignorar la versión vieja de la nube
+            let index = pausadas.findIndex(p => String(p.id) === idReal || String(p.doc_id) === idReal);
+            if (index !== -1 && pausadas[index].sync_pendiente) return;
+
+            let registroNube = (e.record.data && typeof e.record.data === 'object') ? { ...e.record.data } : { ...e.record };
+            registroNube.id = idReal;
+            registroNube.doc_id = idReal;
+            registroNube.sync_pendiente = false;
+
             if (index !== -1) {
-                pausadas[index] = registroNube; // Actualizamos
+                pausadas[index] = registroNube;
             } else {
-                pausadas.push(registroNube); // Agregamos la nueva
+                pausadas.push(registroNube);
             }
-        } 
-        // 2. Si alguien la COBRÓ o ELIMINÓ, la borramos del celular
-        else if (e.action === 'delete') {
-            pausadas = pausadas.filter(p => String(p.id) !== String(e.record.doc_id) && String(p.id) !== String(e.record.id));
+
+            if (window.dbLocal && dbLocal.pausadas) {
+                dbLocal.pausadas.put({ id: idReal, doc_id: idReal, data: registroNube }).catch(() => {});
+            }
+        } else if (e.action === 'delete') {
+            pausadas = pausadas.filter(p => String(p.id) !== idReal && String(p.doc_id) !== idReal);
+            if (window.dbLocal && dbLocal.pausadas) {
+                dbLocal.pausadas.delete(idReal).catch(() => {});
+            }
         }
 
-        // 🌟 3. REACCIÓN AUTOMÁTICA EN LA PANTALLA DEL CELULAR 🌟
-        
-        // Actualizamos la campanita/contador sin tocar nada
+        localStorage.setItem("pos_pausadas_v6", JSON.stringify(pausadas));
+
         if (typeof actualizarContadorPausadas === 'function') {
             actualizarContadorPausadas();
         }
 
-        // Si el cajero tiene la ventana de pausadas abierta en ese momento, 
-        // ¡la tabla se actualiza sola frente a sus ojos!
         let modal = document.getElementById('modalPausadas');
         if (modal && modal.style.display === 'block') {
             let sucLimpia = String(typeof sucursalActual !== 'undefined' ? sucursalActual : 'Matriz').replace(/📍/g, '').trim().toLowerCase();
-            
             pausadasFiltradas = pausadas.filter(p => {
-                if(!p || p.nom === "FANTASMA") return false;
+                if (!p || p.nom === "FANTASMA") return false;
                 let sucVenta = String(p.sucursal || 'Matriz').replace(/📍/g, '').trim().toLowerCase();
                 return sucVenta === sucLimpia;
             });
-            
             if (typeof renderTablaPausadas === 'function') {
                 renderTablaPausadas();
             }
         }
-    }).catch(err => console.warn("No se pudo iniciar el escáner de pausadas:", err));
-}
-
-}
-
-
-
-
-
+    });
+})();
 // =========================================================
 // ELIMINAR PAUSADA
 // =========================================================
-
 function eliminarPausada(idTarget) {
+    idPausadaAEliminar = String(idTarget);
 
-    idPausadaAEliminar =
-        String(idTarget);
-
-
-    let usuarioElemento =
-        document.getElementById(
-            'auth_pausada_user'
-        );
-
-
+    let usuarioElemento = document.getElementById('auth_pausada_user');
     if(usuarioElemento) {
-
-        usuarioElemento.innerText =
-            typeof usuarioActual !== 'undefined'
-                ? usuarioActual
-                : 'Cajero';
-
+        usuarioElemento.innerText = typeof usuarioActual !== 'undefined' ? usuarioActual : 'Cajero';
     }
 
-
-    let pinElemento =
-        document.getElementById(
-            'auth_pausada_pin'
-        );
-
-
+    let pinElemento = document.getElementById('auth_pausada_pin');
     if(pinElemento) {
         pinElemento.value = '';
     }
 
-
-    let modal =
-        document.getElementById(
-            'modalAuthPausada'
-        );
-
-
+    let modal = document.getElementById('modalAuthPausada');
     if(modal) {
-
-        modal.style.display =
-            'block';
-
+        modal.style.display = 'block';
     }
 
-
     setTimeout(() => {
-
         if(pinElemento) {
             pinElemento.focus();
         }
-
     }, 100);
-
 }
 
 
@@ -7670,9 +7849,9 @@ window.verificarPinYCancelar = function() {
 };
 
 
-window.renderCorte = function() { 
+window.renderCorte = async function() { 
     try {
-        // 🔥 AUTO-REPARADOR DE MENÚS: Obligamos a los filtros a actualizar la pantalla al instante
+        // 🔥 AUTO-REPARADOR DE MENÚS
         let elSucursal = document.getElementById('corte_sucursal');
         if (elSucursal && !elSucursal.dataset.vinculado) { elSucursal.addEventListener('change', window.renderCorte); elSucursal.dataset.vinculado = "true"; }
         
@@ -7688,8 +7867,6 @@ window.renderCorte = function() {
         let fInicio = elInicio ? elInicio.value : ''; 
         let fFin = elFin ? elFin.value : ''; 
         let fCajero = elCajero ? elCajero.value.trim() : ''; 
-        
-        // 🛡️ ESCUDO ANTI-ESPACIOS
         let fSuc = elSucursal ? String(elSucursal.value).replace(/📍/g, '').trim() : ''; 
         let hoy = (typeof getFechaLocal === 'function') ? getFechaLocal() : new Date().toISOString().split('T')[0];
 
@@ -7718,23 +7895,117 @@ window.renderCorte = function() {
         let ef=0, ta=0, trans=0, cr=0; let tVentas = 0, tUtilidad = 0, numVentas = 0;
         let ventasPorDia = {}, utilPorDia = {}, depsHash = {}, cajerosHash = {}, horasHash = {}, metricasCajero = {}, topProductosHash = {}; 
         let operacionesHTML = []; 
+        let historialTicketsSumados = 0;
+        let historialVentasSumadas = 0;
 
-        if (todasLasVentas.length === 0 && todosLosMovs.length === 0 && todasLasCompras.length === 0) {
+        let llavesConResumen = new Set(); // 🛡️ Registro de días que ya vienen resueltos de la nube
+
+        // 🔍 Buscador inteligente del negocio_id (mismo que el consolidador)
+        let negocio_id = (window.usuarioActual && window.usuarioActual.negocio_id) ||
+                         (typeof pb !== 'undefined' && pb.authStore && pb.authStore.model && pb.authStore.model.negocio_id) ||
+                         (typeof pb !== 'undefined' && pb.authStore && pb.authStore.record && pb.authStore.record.negocio_id) ||
+                         window.negocio_id ||
+                         window.negocioId ||
+                         localStorage.getItem('negocio_id') ||
+                         localStorage.getItem('pos_negocio_id');
+
+        // ==========================================
+        // 🚀 NUEVO MOTOR HÍBRIDO: LEER RESÚMENES PASADOS
+        // ==========================================
+        if (typeof pb !== 'undefined' && negocio_id && esFiltroHistorico) {
+            try {
+                let resumenes = await pb.collection('resumenes_diarios').getFullList({
+                    filter: `negocio_id = '${negocio_id}'`,
+                    requestKey: null
+                });
+
+                let coincidencias = 0;
+
+                resumenes.forEach(r => {
+                    let d = typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
+                    if (!d) return;
+
+                    let rFecha = d.fecha || (r.doc_id ? r.doc_id.split('_')[0] : '');
+                    let rSuc = String(d.sucursal || 'Matriz').replace(/📍/g, '').trim();
+                    let rCaj = String(d.cajero || 'Admin').trim();
+
+                    // Filtros de fecha, sucursal y cajero en memoria
+                    if (fInicio && rFecha < fInicio) return;
+                    if (fFin && rFecha > fFin) return;
+                    if (fSuc && rSuc !== fSuc) return;
+                    if (fCajero && rCaj !== fCajero) return;
+
+                    coincidencias++;
+                    llavesConResumen.add(`${rFecha}_${rSuc}_${rCaj}`);
+
+                    let vDia = parseFloat(d.total_ventas) || 0;
+                    let gDia = parseFloat(d.ganancia) || 0;
+                    let tDia = parseInt(d.num_tickets) || 0;
+
+                    tVentas += vDia;
+                    tUtilidad += gDia;
+                    numVentas += tDia;
+                    ef += parseFloat(d.efectivo) || 0;
+                    ta += parseFloat(d.tarjeta) || 0;
+                    trans += parseFloat(d.transferencia) || 0;
+                    cr += parseFloat(d.credito) || 0;
+
+                    historialTicketsSumados += tDia;
+                    historialVentasSumadas += vDia;
+                    ventasPorDia[rFecha] = (ventasPorDia[rFecha] || 0) + vDia;
+                    utilPorDia[rFecha] = (utilPorDia[rFecha] || 0) + gDia;
+
+                    // Alimentar métricas y gráfica por cajero
+                    cajerosHash[rCaj] = (cajerosHash[rCaj] || 0) + vDia;
+                    if (!metricasCajero[rCaj]) metricasCajero[rCaj] = { total: 0, tickets: 0, horasUnicas: new Set() };
+                    metricasCajero[rCaj].total += vDia;
+                    metricasCajero[rCaj].tickets += tDia;
+                    metricasCajero[rCaj].horasUnicas.add(rFecha);
+
+                    // Fusionar Top Productos del pasado
+                    if (d.top_productos) {
+                        Object.keys(d.top_productos).forEach(cod => {
+                            if (!topProductosHash[cod]) topProductosHash[cod] = { nombre: d.top_productos[cod].nombre, cantidad: 0, total: 0, ganancia: 0 };
+                            topProductosHash[cod].cantidad += d.top_productos[cod].cantidad || 0;
+                            topProductosHash[cod].total += d.top_productos[cod].total || 0;
+                            topProductosHash[cod].ganancia += d.top_productos[cod].ganancia || 0;
+                        });
+                    }
+                });
+
+                console.log(`📊 Dashboard Híbrido: ${resumenes.length} resúmenes en nube | ${coincidencias} coinciden con [${fInicio} a ${fFin}]`);
+
+                if (historialTicketsSumados > 0) {
+                    operacionesHTML.push({
+                        id: 0,
+                        html: `<tr style="background:#e9ecef; font-weight:bold; color:#495057;"><td colspan="2">📅 Días Anteriores (Historial)</td><td>${fSuc || 'Todas'}</td><td style="color:var(--s);">+$${historialVentasSumadas.toFixed(2)}</td><td>Consolidado</td><td>Resumen en la nube de ${historialTicketsSumados} tickets pasados</td></tr>`
+                    });
+                }
+            } catch (err) {
+                console.warn("⚠️ Error leyendo resúmenes históricos de PocketBase:", err);
+            }
+        }
+
+        if (todasLasVentas.length === 0 && todosLosMovs.length === 0 && todasLasCompras.length === 0 && historialTicketsSumados === 0) {
             if(document.getElementById('r_lista_ventas')) document.getElementById('r_lista_ventas').innerHTML = "<tr><td colspan='6' style='text-align:center'>Vacio</td></tr>";
-            if (typeof dibujarTopProductos === 'function') dibujarTopProductos(topProductosHash);
-            if (typeof actualizarGraficasBI === 'function') actualizarGraficasBI({}, {}, {}, {}, {});
+            if (typeof dibujarTopProductos === 'function') window.dibujarTopProductos(topProductosHash);
+            if (typeof actualizarGraficasBI === 'function') window.actualizarGraficasBI({}, {}, {}, {}, {});
             return;
         }
 
         // ==========================================
-        // 🌟 1. FILTRO DE VENTAS (FECHAS ESTRICTAS Y ANTI-NAN)
+        // 🌟 1. FILTRO DE VENTAS (HOY + RESPALDO DE DÍAS SIN RESUMEN)
         // ==========================================
         let filteredVentas = todasLasVentas.filter(v => { 
             let vSuc = String(v.sucursal || "Matriz").replace(/📍/g, '').trim();
             let vCaj = String(v.cajero || "").trim();
             let vFecha = v.fecha || hoy; 
 
-            // 🛑 REGLA DE ORO: Si la venta NO está entre las fechas seleccionadas, SE DESCARTA siempre.
+            // 🛑 REGLA HÍBRIDA INTELIGENTE: Si ese turno (Fecha + Sucursal + Cajero) YA vino de la nube, no se vuelve a sumar
+            let vCajNorm = String(v.cajero || "Admin").trim();
+            let llaveVenta = `${vFecha}_${vSuc}_${vCajNorm}`;
+            if (vFecha !== hoy && llavesConResumen.has(llaveVenta)) return false;
+
             if (fInicio && vFecha < fInicio) return false;
             if (fFin && vFecha > fFin) return false;
 
@@ -7749,7 +8020,6 @@ window.renderCorte = function() {
         
         filteredVentas.forEach(v => {
             if(!v.anulada) {
-                // 🛡️ ESCUDO 1: Sanear Total del Ticket
                 let tVentaTicket = parseFloat(v.total) || 0; 
                 if (Number.isNaN(tVentaTicket)) tVentaTicket = 0;
 
@@ -7774,10 +8044,8 @@ window.renderCorte = function() {
 
                 if (v.pagos && Array.isArray(v.pagos) && v.pagos.length > 0) { 
                     v.pagos.forEach(p => { 
-                        // 🛡️ ESCUDO 2: Sanear Pagos Múltiples
                         let m = parseFloat(p.montoAplicado) || 0; 
                         if (Number.isNaN(m)) m = 0;
-
                         if(p.metodo === 'Efectivo') ef += m; else if(p.metodo === 'Tarjeta') ta += m; else if(p.metodo === 'Transferencia') trans += m; else if(p.metodo === 'Crédito') cr += m; 
                     }); 
                 } else { 
@@ -7817,33 +8085,26 @@ window.renderCorte = function() {
                                 subtotalItem = parseFloat(d.can || 1) * precioVenta;
                             }
                             
-                            // 🛡️ ESCUDO 3: Sanear cálculo final de la ganancia
                             let gananciaArticulo = subtotalItem - (costoUnitario * parseFloat(String(d.can) || 1));
                             if (Number.isNaN(gananciaArticulo)) gananciaArticulo = 0;
 
                             utilTicket += gananciaArticulo;
                             depsHash[d.dep || "General"] = (depsHash[d.dep || "General"] || 0) + subtotalItem; 
                             
-                            let fechaFiltroReal = fFin ? fFin : hoy;
-
-                            if (dStr === fechaFiltroReal) {
-                                if (!topProductosHash[d.cod]) {
-                                    topProductosHash[d.cod] = { nombre: d.nom || 'Producto Desconocido', cantidad: 0, total: 0, ganancia: 0 };
-                                }
-                                let cantItem = parseFloat(d.can) || 0;
-                                if (Number.isNaN(cantItem)) cantItem = 0;
-
-                                topProductosHash[d.cod].cantidad += cantItem; 
-                                topProductosHash[d.cod].total += subtotalItem;
-                                topProductosHash[d.cod].ganancia += gananciaArticulo;
+                            if (!topProductosHash[d.cod]) {
+                                topProductosHash[d.cod] = { nombre: d.nom || 'Producto Desconocido', cantidad: 0, total: 0, ganancia: 0 };
                             }
+                            let cantItem = parseFloat(d.can) || 0;
+                            if (Number.isNaN(cantItem)) cantItem = 0;
+
+                            topProductosHash[d.cod].cantidad += cantItem; 
+                            topProductosHash[d.cod].total += subtotalItem;
+                            topProductosHash[d.cod].ganancia += gananciaArticulo;
                         }
                     }); 
                 }
                 
-                // 🛡️ ESCUDO 4: Evitar utilidades en blanco (NaN)
                 if (Number.isNaN(utilTicket)) utilTicket = 0;
-                
                 tUtilidad += utilTicket; 
                 utilPorDia[dStr] = (utilPorDia[dStr] || 0) + utilTicket;
             }
@@ -7871,21 +8132,14 @@ window.renderCorte = function() {
             let mCaj = String(m.cajero || "").trim();
 
             if(mFecha >= fInicio && mFecha <= fFin && (!fCajero || mCaj === fCajero) && (!fSuc || mSuc === fSuc)) { 
-                // 🛡️ ESCUDO 5: Sanear Movimientos
                 let montoM = parseFloat(m.monto) || 0; 
                 if (Number.isNaN(montoM)) montoM = 0;
-
                 let mMotivo = (m.motivo || '').toLowerCase();
                 
                 if(m.tipo === 'Ingreso') { 
-                    // 🚀 CORRECCIÓN: Separamos los Abonos/Ingresos según cómo pagó el cliente
-                    if (mMotivo.includes('tarjeta')) {
-                        ta += montoM; // Lo suma al recuadro de Tarjeta
-                    } else if (mMotivo.includes('transferencia') || mMotivo.includes('transf')) {
-                        trans += montoM; // Lo suma al recuadro de Transferencia
-                    } else {
-                        ing_efectivo += montoM; // Si es efectivo, lo deja en el recuadro de Efectivo
-                    }
+                    if (mMotivo.includes('tarjeta')) ta += montoM; 
+                    else if (mMotivo.includes('transferencia') || mMotivo.includes('transf')) trans += montoM; 
+                    else ing_efectivo += montoM; 
                     
                     flujo_ing_otros += montoM; 
                     listaIngresosExtra.push(m);
@@ -7913,7 +8167,6 @@ window.renderCorte = function() {
             let cCaj = String(c.cajero || "").trim();
             let cFecha = c.fecha || hoy;
 
-            // REGLA FECHA COMPRAS
             if (fInicio && cFecha < fInicio) return false;
             if (fFin && cFecha > fFin) return false;
 
@@ -7925,10 +8178,8 @@ window.renderCorte = function() {
 
         filteredCompras.forEach(c => {
             let mMetodo = String(c.metodo || '').toLowerCase();
-            // 🛡️ ESCUDO 6: Sanear Compras
             let totalC = parseFloat(c.total) || 0;
             if (Number.isNaN(totalC)) totalC = 0;
-
             if (mMetodo.includes('efectivo')) comprasEfectivoTotal += totalC;
         });
 
@@ -7942,11 +8193,10 @@ window.renderCorte = function() {
             esperado: efectivoEnCaja, cajeroCorte: fCajero || "Todos", fechaInicio: fInicio, fechaFin: fFin
         };
 
-        // 🛡️ ESCUDOS FINALES: Para la inyección en pantalla
         if (Number.isNaN(tVentas)) tVentas = 0;
         if (Number.isNaN(tUtilidad)) tUtilidad = 0;
         
-        // 📊 INYECCIÓN DE TOTALES EN PANTALLA (CON FIX DE DECIMALES EXACTOS)
+        // 📊 INYECCIÓN DE TOTALES
         if(document.getElementById('kpi_ventas')) document.getElementById('kpi_ventas').innerText = "\$" + tVentas.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         if(document.getElementById('kpi_ganancia')) document.getElementById('kpi_ganancia').innerText = "\$" + tUtilidad.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         if(document.getElementById('kpi_no_ventas')) document.getElementById('kpi_no_ventas').innerText = numVentas;
@@ -7956,22 +8206,67 @@ window.renderCorte = function() {
         if (Number.isNaN(margenUtilidad)) margenUtilidad = 0;
         if(document.getElementById('kpi_margen')) document.getElementById('kpi_margen').innerText = margenUtilidad.toFixed(2) + "%";
         
+
+        // ==========================================
+        // 📊 PROMEDIO DIARIO DEL RANGO SELECCIONADO
+        // ==========================================
+        let diasRango = 1;
+        if (fInicio && fFin) {
+            let [y1, m1, d1] = fInicio.split('-').map(Number);
+            let [y2, m2, d2] = fFin.split('-').map(Number);
+            let dt1 = new Date(y1, m1 - 1, d1);
+            let dt2 = new Date(y2, m2 - 1, d2);
+            let diff = Math.round((dt2 - dt1) / (1000 * 60 * 60 * 24)) + 1;
+            diasRango = diff > 0 ? diff : 1;
+        } else {
+            let diasActivos = Object.keys(ventasPorDia).length;
+            diasRango = diasActivos > 0 ? diasActivos : 1;
+        }
+
+        let promVentaDiaria = tVentas / diasRango;
+        let promGananciaDiaria = tUtilidad / diasRango;
+
+        // Guardarlo también en currentCorteData por si lo ocupas en reportes/impresiones
+        currentCorteData.diasRango = diasRango;
+        currentCorteData.promVentaDiaria = promVentaDiaria;
+        currentCorteData.promGananciaDiaria = promGananciaDiaria;
+
+        // Inyectar sub-etiqueta en la tarjeta de Ventas Totales
+        let elKpiVentas = document.getElementById('kpi_ventas');
+        if (elKpiVentas && elKpiVentas.parentElement) {
+            let subV = document.getElementById('kpi_prom_venta_dia');
+            if (!subV) {
+                subV = document.createElement('div');
+                subV.id = 'kpi_prom_venta_dia';
+                subV.style.cssText = 'font-size: 12px; color: #6c757d; margin-top: 6px; font-weight: 600;';
+                elKpiVentas.parentElement.appendChild(subV);
+            }
+            subV.innerText = `Prom. diario (${diasRango} ${diasRango === 1 ? 'día' : 'días'}): $${promVentaDiaria.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        }
+
+        // Inyectar sub-etiqueta en la tarjeta de Ganancia Neta
+        let elKpiGanancia = document.getElementById('kpi_ganancia');
+        if (elKpiGanancia && elKpiGanancia.parentElement) {
+            let subG = document.getElementById('kpi_prom_ganancia_dia');
+            if (!subG) {
+                subG = document.createElement('div');
+                subG.id = 'kpi_prom_ganancia_dia';
+                subG.style.cssText = 'font-size: 12px; color: #6c757d; margin-top: 6px; font-weight: 600;';
+                elKpiGanancia.parentElement.appendChild(subG);
+            }
+            subG.innerText = `Prom. diario (${diasRango} ${diasRango === 1 ? 'día' : 'días'}): $${promGananciaDiaria.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        }
         if(document.getElementById('r_efectivo')) document.getElementById('r_efectivo').innerText = "\$"+efectivoEnCaja.toFixed(2); 
         if(document.getElementById('r_tarjeta')) document.getElementById('r_tarjeta').innerText = "\$"+ta.toFixed(2); 
         if(document.getElementById('r_transferencia')) document.getElementById('r_transferencia').innerText = "\$"+trans.toFixed(2); 
         if(document.getElementById('r_credito')) document.getElementById('r_credito').innerText = "\$"+cr.toFixed(2); 
-        // 🚀 CORRECCIÓN INGRESOS TOTALES: Sumamos el efectivo total de la caja (que ya incluye ventas + abonos) + tarjetas + transferencias.
         if(document.getElementById('r_total')) document.getElementById('r_total').innerText = "\$"+(efectivoEnCaja + ta + trans).toFixed(2);
 
-        // 🚀 LÍMITE VISUAL (250 FILAS MÁXIMO PARA QUE NO SE CONGELE)
         let contVentas = document.getElementById('r_lista_ventas');
         if(contVentas) {
             let maxFilas = 250; 
             let htmlInyectar = operacionesHTML.slice(0, maxFilas).map(op => op.html).join('');
-            
-            if (operacionesHTML.length > maxFilas) {
-                htmlInyectar += `<tr><td colspan='6' style='text-align:center; background:#ffefc0; color:#856404; font-weight:bold; padding: 10px;'>⚠️ Se muestran ${maxFilas} operaciones visualmente para que tu PC no se trabe. Tus totales SÍ incluyen las ${operacionesHTML.length} operaciones calculadas.</td></tr>`;
-            }
+            if (operacionesHTML.length > maxFilas) htmlInyectar += `<tr><td colspan='6' style='text-align:center; background:#ffefc0; color:#856404; font-weight:bold; padding: 10px;'>⚠️ Se muestran ${maxFilas} operaciones visualmente para que tu PC no se trabe. Tus totales SÍ incluyen las ${operacionesHTML.length} operaciones calculadas.</td></tr>`;
             contVentas.innerHTML = htmlInyectar || "<tr><td colspan='6' style='text-align:center'>No hay operaciones en este rango</td></tr>";
         }
 
@@ -8096,9 +8391,16 @@ window.descargarVentasNube = async function() {
         window.ventasHistoricasTemporales = ventasNube;
         window.movsHistoricosTemporales = movsNube;
         
+        // 🚀 1. Primero actualizamos los resúmenes en la nube y ESPERAMOS (await) a que termine
+        if (typeof window.ejecutarConsolidadorFantasma === 'function') {
+            btn.innerText = "⏳ CONSOLIDANDO RESÚMENES...";
+            await window.ejecutarConsolidadorFantasma();
+        }
+        
         alert(`✅ Éxito: Se descargaron ${ventasNube.length} ventas y ${movsNube.length} movimientos.`); 
         
-        if (typeof renderCorte === 'function') renderCorte();
+        // 🚀 2. Ahora sí dibujamos el Dashboard leyendo los resúmenes ya completos
+        if (typeof renderCorte === 'function') await renderCorte();
         if (typeof calcularTotalesCorte === 'function') calcularTotalesCorte();
         
     } catch(err) { 
@@ -8110,15 +8412,74 @@ window.descargarVentasNube = async function() {
     }
 };
 function actualizarGraficasBI(vDia, uDia, deps, cajs, horas) {
-    if (chartBarInstance) chartBarInstance.destroy(); if (chartDeptInstance) chartDeptInstance.destroy(); if (chartCajeroInstance) chartCajeroInstance.destroy(); if (chartHorasInstance) chartHorasInstance.destroy(); 
-    let fc = Object.keys(vDia).sort();
-    let ctx1 = document.getElementById('chartVentasDiarias'); if(ctx1) chartBarInstance = new Chart(ctx1.getContext('2d'), { type: 'bar', data: { labels: fc, datasets: [ { label: 'Ventas', data: fc.map(f => vDia[f]), backgroundColor: '#8ea1d8' }, { label: 'Ganancia', data: fc.map(f => uDia[f]), backgroundColor: '#475399' } ] }, options: { responsive: true, maintainAspectRatio: false } });
-    let ctx2 = document.getElementById('chartDept'); if(ctx2) chartDeptInstance = new Chart(ctx2.getContext('2d'), { type: 'doughnut', data: { labels: Object.keys(deps), datasets: [{ data: Object.values(deps), backgroundColor: ['#64d0b2', '#007bff', '#28a745', '#17a2b8', '#ffc107', '#6f42c1', '#dc3545', '#fd7e14'] }] }, options: { responsive: true, maintainAspectRatio: false } });
-    let ctx3 = document.getElementById('chartCajeros'); if(ctx3) chartCajeroInstance = new Chart(ctx3.getContext('2d'), { type: 'doughnut', data: { labels: Object.keys(cajs), datasets: [{ data: Object.values(cajs), backgroundColor: ['#994769', '#343a40', '#6c757d', '#f8d7da', '#cce5ff', '#d4edda'] }] }, options: { responsive: true, maintainAspectRatio: false } });
-    let hc = Object.keys(horas).sort();
-    let ctx4 = document.getElementById('chartHoras'); if(ctx4) chartHorasInstance = new Chart(ctx4.getContext('2d'), { type: 'bar', data: { labels: hc, datasets: [{ label: 'Ventas por Hora', data: hc.map(h => horas[h]), backgroundColor: '#fd7e14' }] }, options: { responsive: true, maintainAspectRatio: false } });
-}
+    if (chartBarInstance) chartBarInstance.destroy(); 
+    if (chartDeptInstance) chartDeptInstance.destroy(); 
+    if (chartCajeroInstance) chartCajeroInstance.destroy(); 
+    if (chartHorasInstance) chartHorasInstance.destroy(); 
 
+    let fc = Object.keys(vDia).sort();
+    let promV = (typeof currentCorteData !== 'undefined' && currentCorteData.promVentaDiaria) ? currentCorteData.promVentaDiaria : 0;
+    let promG = (typeof currentCorteData !== 'undefined' && currentCorteData.promGananciaDiaria) ? currentCorteData.promGananciaDiaria : 0;
+
+    let ctx1 = document.getElementById('chartVentasDiarias'); 
+    if (ctx1) {
+        chartBarInstance = new Chart(ctx1.getContext('2d'), { 
+            type: 'bar', 
+            data: { 
+                labels: fc, 
+                datasets: [ 
+                    { 
+                        type: 'line',
+                        label: 'Prom. Ventas', 
+                        data: fc.map(() => promV), 
+                        borderColor: '#ff9800', 
+                        backgroundColor: 'rgba(255, 152, 0, 0.15)',
+                        borderWidth: 2,
+                        borderDash: [6, 6],
+                        pointRadius: 0,
+                        fill: false,
+                        order: 0
+                    },
+                    { 
+                        type: 'line',
+                        label: 'Prom. Ganancia', 
+                        data: fc.map(() => promG), 
+                        borderColor: '#28a745', 
+                        backgroundColor: 'rgba(40, 167, 69, 0.15)',
+                        borderWidth: 2,
+                        borderDash: [4, 4],
+                        pointRadius: 0,
+                        fill: false,
+                        order: 0
+                    },
+                    { 
+                        label: 'Ventas', 
+                        data: fc.map(f => vDia[f]), 
+                        backgroundColor: '#8ea1d8',
+                        order: 1
+                    }, 
+                    { 
+                        label: 'Ganancia', 
+                        data: fc.map(f => uDia[f]), 
+                        backgroundColor: '#475399',
+                        order: 1
+                    } 
+                ] 
+            }, 
+            options: { responsive: true, maintainAspectRatio: false } 
+        });
+    }
+
+    let ctx2 = document.getElementById('chartDept'); 
+    if (ctx2) chartDeptInstance = new Chart(ctx2.getContext('2d'), { type: 'doughnut', data: { labels: Object.keys(deps), datasets: [{ data: Object.values(deps), backgroundColor: ['#64d0b2', '#007bff', '#28a745', '#17a2b8', '#ffc107', '#6f42c1', '#dc3545', '#fd7e14'] }] }, options: { responsive: true, maintainAspectRatio: false } });
+
+    let ctx3 = document.getElementById('chartCajeros'); 
+    if (ctx3) chartCajeroInstance = new Chart(ctx3.getContext('2d'), { type: 'doughnut', data: { labels: Object.keys(cajs), datasets: [{ data: Object.values(cajs), backgroundColor: ['#994769', '#343a40', '#6c757d', '#f8d7da', '#cce5ff', '#d4edda'] }] }, options: { responsive: true, maintainAspectRatio: false } });
+
+    let hc = Object.keys(horas).sort();
+    let ctx4 = document.getElementById('chartHoras'); 
+    if (ctx4) chartHorasInstance = new Chart(ctx4.getContext('2d'), { type: 'bar', data: { labels: hc, datasets: [{ label: 'Ventas por Hora', data: hc.map(h => horas[h]), backgroundColor: '#fd7e14' }] }, options: { responsive: true, maintainAspectRatio: false } });
+}
 // ====================================================================
 // ☁️ DESCARGAR ESTADÍSTICAS DEL PASADO DE FORMA INDEPENDIENTE
 // ====================================================================
@@ -15920,29 +16281,59 @@ window.vincularCamarasGlobales();
 setTimeout(() => {
     if (typeof vincularCamarasGlobales === 'function') vincularCamarasGlobales();
 }, 1500);
-window.cazarZombiesOffline = function() {
-    if (typeof pb === 'undefined' || !navigator.onLine) return;
-    
+window.cazarZombiesOffline = async function() {
+    if (typeof pb === 'undefined' || !navigator.onLine || window._cazandoZombies) return;
+
     let pendientes = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
     if (pendientes.length === 0) return;
 
+    window._cazandoZombies = true;
     console.log(`🧟 Cazando ${pendientes.length} tickets zombies pendientes...`);
-    
-    pendientes.forEach(idZombie => {
-        pb.collection("pausadas").delete(idZombie, { requestKey: null })
-          .then(() => {
-              // Si lo logra matar, lo quita de la lista
-              let actualizados = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
-              actualizados = actualizados.filter(id => id !== idZombie);
-              localStorage.setItem('pos_zombies_pausadas', JSON.stringify(actualizados));
-          })
-          .catch(() => {
-              // Si da error 404, significa que ya no existe, también lo quitamos
-              let actualizados = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
-              actualizados = actualizados.filter(id => id !== idZombie);
-              localStorage.setItem('pos_zombies_pausadas', JSON.stringify(actualizados));
-          });
-    });
+
+    try {
+        // Asegurar limpieza inmediata en RAM y localStorage
+        if (Array.isArray(pausadas)) {
+            pausadas = pausadas.filter(p => p && !pendientes.includes(String(p.id)) && !pendientes.includes(String(p.doc_id)));
+            localStorage.setItem("pos_pausadas_v6", JSON.stringify(pausadas));
+            if (typeof actualizarContadorPausadas === 'function') actualizarContadorPausadas();
+        }
+
+        for (let idZombie of pendientes) {
+            let eliminadoEnNube = false;
+
+            try {
+                await pb.collection("pausadas").delete(idZombie, { requestKey: null });
+                eliminadoEnNube = true;
+            } catch (e) {
+                // Solo si PocketBase confirma 404 (nunca por corte de red status 0), buscamos por doc_id
+                if (e && e.status === 404) {
+                    try {
+                        let encontrados = await pb.collection("pausadas").getFullList({
+                            filter: `id="${idZombie}" || doc_id="${idZombie}"`,
+                            requestKey: null
+                        });
+                        for (let reg of encontrados) {
+                            await pb.collection("pausadas").delete(reg.id, { requestKey: null });
+                        }
+                        eliminadoEnNube = true;
+                    } catch (errBusqueda) {
+                        if (errBusqueda && errBusqueda.status === 404) {
+                            eliminadoEnNube = true;
+                        }
+                    }
+                }
+            }
+
+            // Solo se saca de la libreta si PocketBase confirmó el borrado real
+            if (eliminadoEnNube) {
+                let actualizados = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
+                actualizados = actualizados.filter(id => id !== idZombie);
+                localStorage.setItem('pos_zombies_pausadas', JSON.stringify(actualizados));
+            }
+        }
+    } finally {
+        window._cazandoZombies = false;
+    }
 };
 
 // Se ejecuta cada vez que el internet regrese
@@ -16401,27 +16792,140 @@ window.apagarMayoreo = function() {
 // 🌐 SINCRONIZADOR AUTOMÁTICO DE RECONEXIÓN (OFFLINE -> NUBE)
 // =========================================================
 window.addEventListener('online', async () => {
-    console.log("🌐 Internet recuperado. Empujando pausas locales a la nube...");
-    if (typeof pb === 'undefined') return;
+    if (window._syncPausadasEnCurso || typeof pb === 'undefined') return;
+    window._syncPausadasEnCurso = true;
+    console.log("🌐 Internet recuperado. Sincronizando pausas...");
 
-    // 1. Sincronizar VENTAS pausadas hacia PocketBase
-    for (let p of pausadas) {
-        let idTarget = String(p.id);
-        try {
-            await pb.collection("pausadas").update(idTarget, { doc_id: idTarget, data: p }, { requestKey: null });
-        } catch (e) {
-            pb.collection("pausadas").create({ id: idTarget, doc_id: idTarget, data: p }, { requestKey: null }).catch(() => {});
-        }
-    }
+    try {
+        let negId = (pb.authStore && (pb.authStore.record?.negocio_id || pb.authStore.model?.negocio_id))
+                    || (typeof negocio_id !== 'undefined' ? negocio_id : '')
+                    || localStorage.getItem('pos_negocio_id_saas') || '';
 
-    // 2. Sincronizar COMPRAS pausadas hacia PocketBase
-    for (let cp of comprasPausadas) {
-        let idTarget = String(cp.id);
-        try {
-            await pb.collection("compras_pausadas").update(idTarget, { doc_id: idTarget, data: cp }, { requestKey: null });
-        } catch (e) {
-            pb.collection("compras_pausadas").create({ id: idTarget, doc_id: idTarget, data: cp }, { requestKey: null }).catch(() => {});
+        // 0. Eliminar en la nube las pausas borradas o cobradas sin internet
+        let zombies = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
+        if (zombies.length > 0) {
+            let restantes = [];
+            for (let idZ of zombies) {
+                let borradoReal = false;
+                try {
+                    await pb.collection("pausadas").delete(idZ, { requestKey: null });
+                    borradoReal = true;
+                } catch (e) {
+                    if (e && e.status === 404) {
+                        try {
+                            let coincidencias = await pb.collection("pausadas").getFullList({
+                                filter: `id="${idZ}" || doc_id="${idZ}"`,
+                                requestKey: null
+                            });
+                            for (let reg of coincidencias) {
+                                await pb.collection("pausadas").delete(reg.id, { requestKey: null });
+                            }
+                            borradoReal = true;
+                        } catch (err2) {
+                            if (err2 && err2.status === 404) borradoReal = true;
+                        }
+                    }
+                }
+                if (!borradoReal) restantes.push(idZ);
+            }
+            zombies = restantes;
+            localStorage.setItem('pos_zombies_pausadas', JSON.stringify(zombies));
         }
+
+        // 1. Subir SOLO las pausas creadas o editadas sin internet (sync_pendiente === true)
+        if (Array.isArray(pausadas)) {
+            for (let p of pausadas) {
+                if (!p || !p.id || p.nom === "FANTASMA") continue;
+                let idTarget = String(p.id);
+                if (zombies.includes(idTarget) || !p.sync_pendiente) continue;
+
+                let dataLimpia = { ...p, sync_pendiente: false, en_nube: true };
+                let payload = { id: idTarget, doc_id: idTarget, negocio_id: negId, data: dataLimpia };
+
+                try {
+                    if (p.en_nube) {
+                        await pb.collection("pausadas").update(idTarget, payload, { requestKey: null });
+                    } else {
+                        await pb.collection("pausadas").create(payload, { requestKey: null });
+                    }
+                    p.sync_pendiente = false;
+                    p.en_nube = true;
+                } catch (e) {
+                    try {
+                        if (p.en_nube) {
+                            await pb.collection("pausadas").create(payload, { requestKey: null });
+                        } else {
+                            await pb.collection("pausadas").update(idTarget, payload, { requestKey: null });
+                        }
+                        p.sync_pendiente = false;
+                        p.en_nube = true;
+                    } catch (err2) {
+                        console.warn("⚠️ Pendiente reintento de subida:", idTarget);
+                    }
+                }
+            }
+        }
+
+        // 2. Descargar estado limpio de la nube respetando zombies y cambios locales pendientes
+        try {
+            let filtro = negId ? `negocio_id="${negId}"` : '';
+            let nube = await pb.collection("pausadas").getFullList({ filter: filtro, requestKey: null });
+            let zombiesActuales = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
+            let mapaFinal = new Map();
+
+            // Primero conservar las que sigan con sync_pendiente local
+            (Array.isArray(pausadas) ? pausadas : []).forEach(p => {
+                if (p && p.id && !zombiesActuales.includes(String(p.id)) && p.sync_pendiente) {
+                    mapaFinal.set(String(p.id), p);
+                }
+            });
+
+            // Integrar registros válidos de la nube
+            nube.forEach(r => {
+                let idReal = String(r.doc_id || r.id || (r.data && r.data.id) || '').trim();
+                if (!idReal || zombiesActuales.includes(idReal) || mapaFinal.has(idReal)) return;
+                let obj = (r.data && typeof r.data === 'object') ? { ...r.data } : { ...r };
+                obj.id = idReal;
+                obj.doc_id = idReal;
+                obj.sync_pendiente = false;
+                obj.en_nube = true;
+                mapaFinal.set(idReal, obj);
+            });
+
+            pausadas = Array.from(mapaFinal.values());
+            localStorage.setItem("pos_pausadas_v6", JSON.stringify(pausadas));
+
+            if (window.dbLocal && dbLocal.pausadas) {
+                await dbLocal.pausadas.clear().catch(() => {});
+                for (let p of pausadas) {
+                    await dbLocal.pausadas.put({ id: String(p.id), doc_id: String(p.id), data: p }).catch(() => {});
+                }
+            }
+        } catch (errDescarga) {}
+
+        if (typeof actualizarContadorPausadas === 'function') actualizarContadorPausadas();
+        let modal = document.getElementById('modalPausadas');
+        if (modal && modal.style.display === 'block' && typeof renderTablaPausadas === 'function') {
+            let sucLimpia = String(typeof sucursalActual !== 'undefined' ? sucursalActual : 'Matriz').replace(/📍/g, '').trim().toLowerCase();
+            pausadasFiltradas = pausadas.filter(p => p && p.nom !== "FANTASMA" && String(p.sucursal || 'Matriz').replace(/📍/g, '').trim().toLowerCase() === sucLimpia);
+            renderTablaPausadas();
+        }
+
+        // 3. Sincronizar COMPRAS pausadas hacia PocketBase
+        if (typeof comprasPausadas !== 'undefined' && Array.isArray(comprasPausadas)) {
+            for (let cp of comprasPausadas) {
+                if (!cp || !cp.id) continue;
+                let idTarget = String(cp.id);
+                let payloadCp = { id: idTarget, doc_id: idTarget, negocio_id: negId, data: cp };
+                try {
+                    await pb.collection("compras_pausadas").update(idTarget, payloadCp, { requestKey: null });
+                } catch (e) {
+                    await pb.collection("compras_pausadas").create(payloadCp, { requestKey: null }).catch(() => {});
+                }
+            }
+        }
+    } finally {
+        window._syncPausadasEnCurso = false;
     }
 });
 window.eliminarItemC = function(i) {
