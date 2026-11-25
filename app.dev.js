@@ -135,14 +135,7 @@ const db = {
                         let tablaLocal = colName === "inventario" ? "productos" : colName;
 
                         // 1. CARGA INMEDIATA DESDE DISCO / MEMORIA (Blindaje 100% Offline)
-                        if (colName === "pausadas") {
-                            let zombies = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
-                            let localesLS = JSON.parse(localStorage.getItem('pos_pausadas_v6') || '[]');
-                            let fuente = (Array.isArray(pausadas) && pausadas.length > 0) ? pausadas : localesLS;
-                            cache = fuente
-                                .filter(p => p && p.id && !zombies.includes(String(p.id)))
-                                .map(p => ({ doc_id: String(p.id), data: p }));
-                        } else if (colName === "inventario" && typeof inv !== 'undefined' && Object.keys(inv).length > 0) {
+                        if (colName === "inventario" && typeof inv !== 'undefined' && Object.keys(inv).length > 0) {
                             cache = Object.keys(inv).map(k => ({ doc_id: k, data: inv[k] }));
                         } else if (window.dbLocal && dbLocal[tablaLocal]) {
                             try {
@@ -183,17 +176,9 @@ const db = {
 
                         // ⚡ 2. RADAR EN VIVO
                         pb.collection(colName).subscribe('*', function(e) {
-                            let key = String(e.record.doc_id || e.record.id);
+                            let key = e.record.doc_id || e.record.id;
                             let dataObj = (e.record.data && typeof e.record.data === 'object') ? e.record.data : e.record;
                             let tipoCambio = e.action === 'delete' ? 'removed' : (e.action === 'create' ? 'added' : 'modified');
-
-                            // 🛡️ ESCUDO OFFLINE PARA PAUSADAS: Ignorar versiones viejas de la nube si hay cambios locales sin subir
-                            if (colName === "pausadas") {
-                                let zombies = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
-                                if (zombies.includes(key)) return;
-                                let localPendiente = (Array.isArray(pausadas) ? pausadas : []).find(p => String(p.id) === key && p.sync_pendiente);
-                                if (localPendiente) return;
-                            }
 
                             if (e.action === 'create' || e.action === 'update') {
                                 let idx = cache.findIndex(x => (x.doc_id || x.id) === key);
@@ -3781,32 +3766,14 @@ window.borrarArticuloVenta = function(index) {
     // Ejecutamos el borrado normal del carrito
     carV.splice(index, 1);
 
-    // Si el carrito se quedó completamente vacío tras borrar este artículo, destruimos la pausa y reseteamos memoria
+    // 👇 AQUÍ AGREGAMOS LA CONDICIÓN 👇
+    // Si el carrito se quedó completamente vacío tras borrar este artículo, reseteamos la memoria de la pausa
     if (carV.length === 0) {
-        if (window.idVentaPausadaActual) {
-            let idSobrante = String(window.idVentaPausadaActual);
-            pausadas = pausadas.filter(p => p && String(p.id) !== idSobrante);
-            localStorage.setItem("pos_pausadas_v6", JSON.stringify(pausadas));
-            if (window.dbLocal && dbLocal.pausadas) dbLocal.pausadas.delete(idSobrante).catch(() => {});
-
-            let pendientes = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
-            if (!pendientes.includes(idSobrante)) pendientes.push(idSobrante);
-            localStorage.setItem('pos_zombies_pausadas', JSON.stringify(pendientes));
-
-            if (typeof pb !== 'undefined' && navigator.onLine) {
-                pb.collection("pausadas").delete(idSobrante, { requestKey: null })
-                    .then(() => {
-                        let rest = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]').filter(z => z !== idSobrante);
-                        localStorage.setItem('pos_zombies_pausadas', JSON.stringify(rest));
-                    })
-                    .catch(() => {});
-            }
-        }
         window.historialVentaActual = [];
-        window.idVentaPausadaActual = null;
+        // window.idVentaPausadaActual = null;
         nombreVentaActual = "";
-        if (typeof actualizarContadorPausadas === 'function') actualizarContadorPausadas();
     }
+    // 👆 FIN DE LA CONDICIÓN 👆
     
     // Acomodamos la vista y el escáner
     if (typeof focusVentaIndex !== 'undefined') {
@@ -4605,31 +4572,11 @@ window.confirmarVenta = async function(cambioFinal = 0) {
             }
         }
 
-        if (window.idVentaPausadaActual) {
-            let idSobrante = String(window.idVentaPausadaActual);
-            pausadas = pausadas.filter(p => p && String(p.id) !== idSobrante);
-            localStorage.setItem("pos_pausadas_v6", JSON.stringify(pausadas));
-            if (window.dbLocal && dbLocal.pausadas) dbLocal.pausadas.delete(idSobrante).catch(() => {});
-
-            let pendientes = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
-            if (!pendientes.includes(idSobrante)) pendientes.push(idSobrante);
-            localStorage.setItem('pos_zombies_pausadas', JSON.stringify(pendientes));
-
-            if (typeof pb !== 'undefined' && navigator.onLine) {
-                pb.collection("pausadas").delete(idSobrante, { requestKey: null })
-                    .then(() => {
-                        let rest = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]').filter(z => z !== idSobrante);
-                        localStorage.setItem('pos_zombies_pausadas', JSON.stringify(rest));
-                    })
-                    .catch(() => {});
-            }
-        }
-
-        carV = []; 
-        window.historialVentaActual = [];
-        window.idVentaPausadaActual = null;
-        nombreVentaActual = "";
-        if (typeof actualizarContadorPausadas === 'function') actualizarContadorPausadas();
+        carV = []; nombreVentaActual = ""; 
+        // Agrega esto justo después de donde dice carV = []; o al terminar de cobrar/cancelar
+window.historialVentaActual = [];
+// window.idVentaPausadaActual = null; 
+nombreVentaActual = "";
         if (typeof forceWholesale !== 'undefined') forceWholesale = false; 
         if (typeof pagosCobro !== 'undefined') pagosCobro.length = 0; window.pagosCobro = [];
         if (typeof restanteCobro !== 'undefined') restanteCobro = 0; window.restanteCobro = 0;
@@ -4718,6 +4665,7 @@ function abrirGranel(c) {
     setTimeout(() => { cajaKilos.focus(); cajaKilos.select(); }, 100); 
 }
 
+// Pausadas
 // =========================================================
 // 🛑 INICIO DEL BLOQUE MAESTRO DE VENTAS PAUSADAS
 // =========================================================
@@ -4730,190 +4678,179 @@ function generarIdPB() {
     return id;
 }
 
-// 🧹 LIMPIADOR EN SEGUNDO PLANO DE TICKETS BORRADOS SIN INTERNET
-// 🧹 LIMPIADOR EN SEGUNDO PLANO DE TICKETS BORRADOS SIN INTERNET
-(function iniciarLimpiadorZombies() {
-    const purgarPendientes = async () => {
-        let pendientes = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
-        if (pendientes.length === 0) return;
+// =========================================================
+// 🛡️ ESCUDO ANTI-DUPLICADOS DE PAUSADAS
+// =========================================================
+window.obtenerFirmaPausada = function(p) {
+    if (!p) return "";
+    let nom = String(p.nom || "").trim().toLowerCase();
+    let suc = String(p.sucursal || "Matriz").replace(/📍/g, "").trim().toLowerCase();
+    let tot = parseFloat(String(p.total || "0").replace(/[^0-9.-]/g, "")).toFixed(2);
+    let its = (Array.isArray(p.items) ? p.items : [])
+        .map(it => `${it.cod || it.id || it.nom}:${it.can || it.cant || it.cantidad || 1}`)
+        .sort().join("|");
+    return `${suc}::${nom}::${tot}::${its}`;
+};
 
-        // 1. Asegurar que tampoco existan en memoria ni localStorage
-        if (Array.isArray(pausadas)) {
-            pausadas = pausadas.filter(p => p && !pendientes.includes(String(p.id)) && !pendientes.includes(String(p.doc_id)));
-            localStorage.setItem("pos_pausadas_v6", JSON.stringify(pausadas));
-            if (typeof actualizarContadorPausadas === 'function') actualizarContadorPausadas();
-        }
+window.deduplicarPausadasLocal = function() {
+    if (!Array.isArray(pausadas)) pausadas = [];
+    let zombies = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
+    let porId = new Map();
+    let porFirma = new Map();
 
-        // 2. Si ya volvió el internet, buscarlos por id o doc_id y eliminarlos definitivamente de PocketBase
-        if (typeof pb !== 'undefined' && navigator.onLine) {
-            let restantes = [];
-            for (let idZ of pendientes) {
-                let borradoReal = false;
-                try {
-                    await pb.collection("pausadas").delete(idZ, { requestKey: null });
-                    borradoReal = true;
-                } catch (e) {
-                    if (e && e.status === 404) {
-                        try {
-                            let coincidencias = await pb.collection("pausadas").getFullList({
-                                filter: `id="${idZ}" || doc_id="${idZ}"`,
-                                requestKey: null
-                            });
-                            for (let reg of coincidencias) {
-                                await pb.collection("pausadas").delete(reg.id, { requestKey: null });
-                            }
-                            borradoReal = true;
-                        } catch (errBusca) {
-                            if (errBusca && errBusca.status === 404) borradoReal = true;
-                        }
-                    }
-                }
-                if (!borradoReal) restantes.push(idZ);
+    for (let p of pausadas) {
+        if (!p || !p.id || p.nom === "FANTASMA") continue;
+        let idStr = String(p.id);
+        if (zombies.includes(idStr)) continue;
+
+        let f = window.obtenerFirmaPausada(p);
+        if (porId.has(idStr)) continue;
+        if (f && porFirma.has(f)) {
+            // Si hay duplicado por contenido, conservar el que ya está en nube o el más reciente
+            let prev = porFirma.get(f);
+            if (!prev.en_nube && p.en_nube) {
+                porId.delete(String(prev.id));
+                porId.set(idStr, p);
+                porFirma.set(f, p);
             }
-            localStorage.setItem('pos_zombies_pausadas', JSON.stringify(restantes));
+            continue;
         }
-    };
+        porId.set(idStr, p);
+        if (f) porFirma.set(f, p);
+    }
 
-    window.addEventListener('online', purgarPendientes);
-    setTimeout(purgarPendientes, 4000);
-})();
+    pausadas = Array.from(porId.values());
+    localStorage.setItem("pos_pausadas_v6", JSON.stringify(pausadas));
+};
 
 // =========================================================
-// 1. PAUSAR VENTA (INSTANTÁNEO OFFLINE Y SIN DUPLICADOS)
+// 1. PAUSAR VENTA (BLINDADO POR NOMBRE E ID)
 // =========================================================
-async function preguntarPausar() { 
-    if (!carV || carV.length === 0) return; 
-    if (window._pausandoEnCurso) return;
+async function preguntarPausar() {
+    if (!carV || carV.length === 0 || window._pausandoEnCurso) return;
 
-    let n = prompt("Nombre venta pausada:", nombreVentaActual || "Cliente " + (pausadas.length + 1)); 
-    if (!n || !n.trim()) return;
+    let n = prompt("Nombre venta pausada:", nombreVentaActual || "Cliente " + (pausadas.length + 1));
+    if (!n) return;
 
     window._pausandoEnCurso = true;
-
     try {
-        let idUnico = window.idVentaPausadaActual ? String(window.idVentaPausadaActual) : generarIdPB(); 
-        let sucActualStr = String(typeof sucursalActual !== 'undefined' ? sucursalActual : "Matriz").replace(/📍/g, '').trim();
         let cajeroActual = (typeof usuarioActual !== 'undefined' && usuarioActual) ? usuarioActual : 'Desconocido';
         let totalActual = document.getElementById('v_total') ? document.getElementById('v_total').innerText : '0.00';
         let horaPausa = new Date().toLocaleTimeString('es-MX', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
-        if (typeof registrarEventoVenta === 'function') {
-            registrarEventoVenta("PAUSA", `Pausa por [${cajeroActual}]. Total: $${totalActual}. Nombre: "${n.trim()}"`);
-        }
+        let sucActual = typeof sucursalActual !== 'undefined' ? sucursalActual : "Matriz";
 
         let itemsLimpios = carV.map(item => {
             let q = item.can || item.cant || item.cantidad || 1;
             return { ...item, can: q, cant: q, cantidad: q };
         });
 
-        let nuevaPausada = { 
-            id: idUnico, 
+        // 🔍 EL ESCUDO POR NOMBRE: Busca si ya existe una pausa con este mismo nombre exacto
+        let nombreBuscado = n.trim().toLowerCase();
+        let existentePorNombre = (Array.isArray(pausadas) ? pausadas : []).find(p => String(p.nom || "").trim().toLowerCase() === nombreBuscado);
+
+        // Si ya hay una con ese nombre, reciclamos su ID para sobreescribirla. Si no, generamos uno nuevo.
+        let idUnico = window.idVentaPausadaActual 
+            ? String(window.idVentaPausadaActual) 
+            : (existentePorNombre ? String(existentePorNombre.id) : generarIdPB());
+
+        let nuevaPausada = {
+            id: idUnico,
             doc_id: idUnico,
-            nom: n.trim(), 
-            total: totalActual, 
-            items: itemsLimpios, 
-            sucursal: sucActualStr,
+            nom: n.trim(),
+            total: totalActual,
+            items: itemsLimpios,
+            sucursal: sucActual,
             ultima_pausa_hora: horaPausa,
             cajero_pauso: cajeroActual,
             caja_negra: [...(window.historialVentaActual || [])],
-            sync_pendiente: true
-        }; 
+            sync_pendiente: !navigator.onLine,
+            en_nube: existentePorNombre ? !!existentePorNombre.en_nube : false
+        };
 
-        let zombies = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]').filter(z => z !== idUnico);
-        localStorage.setItem('pos_zombies_pausadas', JSON.stringify(zombies));
-
-        let idx = pausadas.findIndex(p => String(p.id) === idUnico);
-        if (idx !== -1) {
-            pausadas[idx] = nuevaPausada; 
-        } else {
-            pausadas.push(nuevaPausada); 
+        if (typeof registrarEventoVenta === 'function') {
+            registrarEventoVenta("PAUSA", `Pausa por [${cajeroActual}]. Total: $${totalActual}. Nombre: "${n}"`);
         }
-        localStorage.setItem("pos_pausadas_v6", JSON.stringify(pausadas)); 
+
+        // 2. Actualizar en memoria y disco local borrando rastros viejos
+        if (!Array.isArray(pausadas)) pausadas = [];
+        pausadas = pausadas.filter(p => String(p.id) !== idUnico && String(p.nom || "").trim().toLowerCase() !== nombreBuscado);
+        pausadas.push(nuevaPausada);
+        window.deduplicarPausadasLocal();
+
         if (window.dbLocal && dbLocal.pausadas) {
-            dbLocal.pausadas.put({ id: idUnico, doc_id: idUnico, data: nuevaPausada }).catch(() => {});
+            await dbLocal.pausadas.put({ id: idUnico, doc_id: idUnico, data: nuevaPausada }).catch(() => {});
         }
 
-        if (typeof limpiarCajaNegra === 'function') {
-            limpiarCajaNegra();
-        } else {
-            window.historialVentaActual = [];
-        }
+        // 3. Subir a PocketBase con negocio_id e ID forzado
+        let negId = (typeof pb !== 'undefined' && pb.authStore && (pb.authStore.record?.negocio_id || pb.authStore.model?.negocio_id))
+                    || (typeof negocio_id !== 'undefined' ? negocio_id : '')
+                    || localStorage.getItem('pos_negocio_id_saas') || '';
 
-        window._ultimaPausaActivaId = null; // 👈 Indica que se está re-pausando (no cobrando ni vaciando)
-        carV = []; 
-        forceWholesale = false; 
-        nombreVentaActual = "";
-        window.idVentaPausadaActual = null;
-
-        let badgeMayoreo = document.getElementById('v_mayoreo_status');
-        if (badgeMayoreo) { 
-            badgeMayoreo.innerText = "MAYOREO: DESACTIVADO"; 
-            badgeMayoreo.style.background = "#444"; 
-            badgeMayoreo.style.color = "#bbb"; 
-        }
-
-        if (typeof window.renderV === 'function') window.renderV(); 
-        if (typeof actualizarContadorPausadas === 'function') actualizarContadorPausadas(); 
-
-        setTimeout(() => { 
-            let inputEscaner = document.getElementById('v_cod'); 
-            if (inputEscaner) { inputEscaner.value = ''; inputEscaner.focus(); } 
-        }, 150);
+        let payloadNube = {
+            id: idUnico,
+            doc_id: idUnico,
+            negocio_id: negId,
+            data: { ...nuevaPausada, sync_pendiente: false, en_nube: true }
+        };
 
         if (typeof pb !== 'undefined' && navigator.onLine) {
-            let negId = (pb.authStore && (pb.authStore.record?.negocio_id || pb.authStore.model?.negocio_id)) 
-                        || (typeof negocio_id !== 'undefined' ? negocio_id : '');
-
-            let payloadNube = {
-                id: idUnico,
-                doc_id: idUnico,
-                negocio_id: negId,
-                data: { ...nuevaPausada, sync_pendiente: false }
-            };
-
-            const marcarSincronizada = () => {
-                let itemLocal = pausadas.find(p => String(p.id) === idUnico);
-                if (itemLocal) {
-                    itemLocal.sync_pendiente = false;
-                    localStorage.setItem("pos_pausadas_v6", JSON.stringify(pausadas));
-                    if (window.dbLocal && dbLocal.pausadas) {
-                        dbLocal.pausadas.put({ id: idUnico, doc_id: idUnico, data: itemLocal }).catch(() => {});
-                    }
+            try {
+                await pb.collection("pausadas").update(idUnico, payloadNube, { requestKey: null });
+                nuevaPausada.sync_pendiente = false;
+                nuevaPausada.en_nube = true;
+            } catch (err) {
+                try {
+                    await pb.collection("pausadas").create(payloadNube, { requestKey: null });
+                    nuevaPausada.sync_pendiente = false;
+                    nuevaPausada.en_nube = true;
+                } catch (errCreate) {
+                    nuevaPausada.sync_pendiente = true;
+                    console.warn("⚠️ Pausa guardada localmente, pendiente de subir:", errCreate);
                 }
-            };
-
-            pb.collection("pausadas").update(idUnico, payloadNube, { requestKey: null })
-                .then(marcarSincronizada)
-                .catch(() => {
-                    pb.collection("pausadas").create(payloadNube, { requestKey: null })
-                        .then(marcarSincronizada)
-                        .catch(e => console.warn("⏳ Pausa en cola offline:", e));
-                });
+            }
+            localStorage.setItem("pos_pausadas_v6", JSON.stringify(pausadas));
         }
+
+        if (typeof limpiarCajaNegra === 'function') limpiarCajaNegra();
+        else window.historialVentaActual = [];
+
+        carV = [];
+        forceWholesale = false;
+        nombreVentaActual = "";
+        window.idVentaPausadaActual = null;
+ 
+        let badgeMayoreo = document.getElementById('v_mayoreo_status');
+        if (badgeMayoreo) {
+            badgeMayoreo.innerText = "MAYOREO: DESACTIVADO";
+            badgeMayoreo.style.background = "#444";
+            badgeMayoreo.style.color = "#bbb";
+        }
+
+        if (typeof window.renderV === 'function') window.renderV();
+        if (typeof actualizarContadorPausadas === 'function') actualizarContadorPausadas();
+
+        setTimeout(() => {
+            let inputEscaner = document.getElementById('v_cod');
+            if (inputEscaner) { inputEscaner.value = ''; inputEscaner.focus(); }
+        }, 150);
     } finally {
         window._pausandoEnCurso = false;
     }
 }
-
 // =========================================================
-// 2. RETOMAR VENTA (CONSERVANDO SU ID REAL)
+// 2. RETOMAR VENTA
 // =========================================================
-window.retomarVenta = function(idBuscar) { 
+window.retomarVenta = function(idBuscar) {
     let idStr = String(idBuscar);
     let i = pausadas.findIndex(p => String(p.id) === idStr);
     if (i === -1) return;
 
     let ventaRecuperada = pausadas[i];
-    
-    // 1. Cargamos los artículos y el nombre al sistema
     carV = Array.isArray(ventaRecuperada.items) ? [...ventaRecuperada.items] : [];
     nombreVentaActual = ventaRecuperada.nom || "Venta";
-    
-    // 2. Retenemos el ID y el historial en la memoria
-    window.idVentaPausadaActual = idStr; 
+    window.idVentaPausadaActual = idStr;
     window.historialVentaActual = ventaRecuperada.caja_negra ? [...ventaRecuperada.caja_negra] : [];
-    
-    // 3. Registramos en la caja negra que la venta fue reabierta
+
     if (typeof registrarEventoVenta === 'function') {
         let cajero = (typeof usuarioActual !== 'undefined' && usuarioActual) ? usuarioActual : 'Desconocido';
         registrarEventoVenta("REANUDAR", `Venta "${nombreVentaActual}" despausada por [${cajero}]`);
@@ -4923,7 +4860,6 @@ window.retomarVenta = function(idBuscar) {
     if (typeof cerrarModales === 'function') cerrarModales();
     if (typeof actualizarContadorPausadas === 'function') actualizarContadorPausadas();
 };
-
 // =========================================================
 // 3. ELIMINAR VENTA PAUSADA
 // =========================================================
@@ -4953,19 +4889,14 @@ function confirmarEliminarPausada() {
         pausadas.splice(i, 1);
         localStorage.setItem("pos_pausadas_v6", JSON.stringify(pausadas));
 
-        // Registrar en libreta de zombies para asegurar borrado aunque falle el internet
-        let pendientes = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
-        if (!pendientes.includes(idReal)) pendientes.push(idReal);
-        localStorage.setItem('pos_zombies_pausadas', JSON.stringify(pendientes));
-
         // ☁️ BORRADO DEFINITIVO EN LA NUBE
         if (typeof pb !== 'undefined' && navigator.onLine) {
-            pb.collection("pausadas").delete(idReal, { requestKey: null })
-                .then(() => {
-                    let rest = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]').filter(z => z !== idReal);
-                    localStorage.setItem('pos_zombies_pausadas', JSON.stringify(rest));
-                })
-                .catch(() => {});
+            let payloadFantasma = { data: { nom: 'FANTASMA', items: [] } };
+            pb.collection("pausadas").update(idReal, payloadFantasma, { requestKey: null })
+              .then(() => pb.collection("pausadas").delete(idReal, { requestKey: null }).catch(() => {}))
+              .catch(() => {
+                  pb.collection("pausadas").delete(idReal, { requestKey: null }).catch(() => {});
+              });
         }
     }
 
@@ -4988,7 +4919,6 @@ function confirmarEliminarPausada() {
         cerrarModales(); 
     }
 }
-
 // =========================================================
 // 🛡️ PARCHE AUTO-DESTRUCTOR (CAZADOR DE ZOMBIES)
 // =========================================================
@@ -4996,44 +4926,46 @@ if (!window.renderV_original_blindado) {
     window.renderV_original_blindado = window.renderV;
     
     window.renderV = function() {
-        let carritoActivo = (typeof carV !== 'undefined' && Array.isArray(carV)) ? carV : (window.carV || []);
+        // Usamos carV directo (no window.carV) para leer el carrito real
+        let carritoActual = (typeof carV !== 'undefined' && Array.isArray(carV)) ? carV : [];
 
-        if (window.idVentaPausadaActual && carritoActivo.length === 0) {
+        if (window.idVentaPausadaActual && carritoActual.length === 0) {
             let idSobrante = String(window.idVentaPausadaActual);
             window.idVentaPausadaActual = null; 
-            window.nombreVentaActual = "";
+            nombreVentaActual = "";
 
-            // 1. Quitar de la lista local y contador al instante (con o sin internet)
-            if (Array.isArray(pausadas)) {
-                pausadas = pausadas.filter(p => p && String(p.id) !== idSobrante);
+            // 1. Borrar también de memoria local, localStorage e IndexedDB
+            if (typeof pausadas !== 'undefined' && Array.isArray(pausadas)) {
+                pausadas = pausadas.filter(p => String(p.id) !== idSobrante);
                 localStorage.setItem("pos_pausadas_v6", JSON.stringify(pausadas));
-                if (typeof actualizarContadorPausadas === 'function') actualizarContadorPausadas();
             }
             if (window.dbLocal && dbLocal.pausadas) {
                 dbLocal.pausadas.delete(idSobrante).catch(() => {});
             }
+            if (typeof actualizarContadorPausadas === 'function') actualizarContadorPausadas();
 
-            // 2. Anotar en libreta de zombies y borrar de la nube
-            let pendientes = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
-            if (!pendientes.includes(idSobrante)) pendientes.push(idSobrante);
-            localStorage.setItem('pos_zombies_pausadas', JSON.stringify(pendientes));
-
-            if (typeof pb !== 'undefined' && navigator.onLine) {
-                (async () => {
-                    try {
-                        await pb.collection("pausadas").delete(idSobrante, { requestKey: null });
-                    } catch (e) {
+            // 2. Borrar en nube o anotar como zombie si no hay internet
+            if (typeof pb !== 'undefined') {
+                if (navigator.onLine) {
+                    (async () => {
                         try {
-                            let encontrado = await pb.collection("pausadas").getFirstListItem(`id="${idSobrante}" || doc_id="${idSobrante}"`, { requestKey: null });
-                            if (encontrado && encontrado.id) {
-                                await pb.collection("pausadas").delete(encontrado.id, { requestKey: null });
-                            }
-                        } catch (errBusqueda) {}
-                    } finally {
-                        let rest = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]').filter(z => z !== idSobrante);
-                        localStorage.setItem('pos_zombies_pausadas', JSON.stringify(rest));
-                    }
-                })();
+                            await pb.collection("pausadas").delete(idSobrante, { requestKey: null });
+                            console.log("💥 Venta pausada cobrada/vaciada y borrada en nube.");
+                        } catch (e) {
+                            try {
+                                let encontrado = await pb.collection("pausadas").getFirstListItem(`id="${idSobrante}" || doc_id="${idSobrante}"`, { requestKey: null });
+                                if (encontrado && encontrado.id) {
+                                    await pb.collection("pausadas").delete(encontrado.id, { requestKey: null });
+                                }
+                            } catch (errBusqueda) {}
+                        }
+                    })();
+                } else {
+                    console.log("📴 Sin conexión. Guardando ticket zombie para borrarlo luego.");
+                    let pendientes = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
+                    if (!pendientes.includes(idSobrante)) pendientes.push(idSobrante);
+                    localStorage.setItem('pos_zombies_pausadas', JSON.stringify(pendientes));
+                }
             }
         }
         
@@ -5042,35 +4974,35 @@ if (!window.renderV_original_blindado) {
         }
     };
 }
-
 // =========================================================
 // VARIABLES
 // =========================================================
+
 let pausadasFiltradas = [];
+
 let focusPausadaIndex = 0;
+
 let idPausadaAEliminar = null;
 
+
+
 // =========================================================
-// 1. ABRIR PAUSADAS (CON FILTRO ESTRICTO Y ANTI-ZOMBIES)
+// ABRIR PAUSADAS
+// =========================================================
+
+// =========================================================
+// 1. ABRIR PAUSADAS (CON FILTRO ESTRICTO)
 // =========================================================
 function abrirPausadas() { 
     if(!Array.isArray(pausadas)) pausadas = [];
 
-    let zombies = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
     let mapa = new Map();
     pausadas.forEach(p => {
         if(!p) return;
-        let idNorm = String(p.id || p.doc_id || '').trim();
-        if(!idNorm) {
-            idNorm = (typeof generarIdPB === 'function') ? generarIdPB() : String(Date.now()) + Math.random();
-        }
-        if(zombies.includes(idNorm)) return; // Ignorar eliminadas offline
-        p.id = idNorm;
-        p.doc_id = idNorm;
-        mapa.set(idNorm, p);
+        if(!p.id) p.id = String(Date.now()) + Math.random();
+        mapa.set(String(p.id), p);
     });
     pausadas = Array.from(mapa.values());
-    localStorage.setItem("pos_pausadas_v6", JSON.stringify(pausadas));
 
     if(carV && carV.length > 0) {
         if(confirm("⚠️ TIENES UNA VENTA EN CURSO.\n\n¿Deseas poner esta venta en PAUSA primero?")) {
@@ -5106,155 +5038,216 @@ function actualizarContadorPausadas() {
     let lbl = document.getElementById('count_pausadas');
     if(!lbl) return;
 
-    let zombies = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
     let mapa = new Map();
     pausadas.forEach(p => {
-        if(!p) return;
-        let idNorm = String(p.id || p.doc_id || '').trim();
-        if(idNorm && !zombies.includes(idNorm)) {
-            p.id = idNorm;
-            mapa.set(idNorm, p);
-        }
+        if(p && p.id) mapa.set(String(p.id), p);
     });
     pausadas = Array.from(mapa.values());
 
-    // 🌟 FILTRO ESTRICTO DE SUCURSAL (excluyendo la que ya está abierta en pantalla)
+    // 🌟 FILTRO ESTRICTO DE SUCURSAL
     let sucLimpia = String(typeof sucursalActual !== 'undefined' ? sucursalActual : 'Matriz').replace(/📍/g, '').trim().toLowerCase();
-    let abiertaActual = window.idVentaPausadaActual ? String(window.idVentaPausadaActual) : null;
 
     lbl.innerText = pausadas.filter(p => {
         if(!p || p.nom === "FANTASMA") return false;
-        if(abiertaActual && String(p.id) === abiertaActual) return false;
         let sucVenta = String(p.sucursal || 'Matriz').replace(/📍/g, '').trim().toLowerCase();
         return sucVenta === sucLimpia;
     }).length;
 }
+// =========================================================
+// TABLA
+// =========================================================
 
-// =========================================================
-// TABLA (SOLO DIBUJO, SIN SUSCRIPCIONES DENTRO)
-// =========================================================
 function renderTablaPausadas() {
-    let html = pausadasFiltradas.map((p, index) => {
-        let isFocused = index === focusPausadaIndex;
-        let bgRow = isFocused ? 'background:#e0f0ff; border-left: 4px solid var(--info);' : '';
 
-        return `
-            <tr style="cursor:pointer; ${bgRow}" onclick="retomarVenta('${String(p.id)}')">
-                <td>
-                    ${isFocused ? '👉 ' : ''}
-                    <b>${p.nom || 'Venta'}</b>
-                </td>
-                <td>${(p.items || []).length} art.</td>
-                <td>$${parseFloat(p.total || 0).toFixed(2)}</td>
-                <td>
-                    <button
-                        style="background:var(--danger); color:white; border:none; padding:5px 10px; border-radius:5px;"
-                        onclick="event.stopPropagation(); eliminarPausada('${String(p.id)}')"
+    let html =
+        pausadasFiltradas
+            .map((p, index) => {
+
+                let isFocused =
+                    index === focusPausadaIndex;
+
+
+                let bgRow =
+                    isFocused
+                        ? 'background:#e0f0ff; border-left: 4px solid var(--info);'
+                        : '';
+
+
+                return `
+                    <tr
+                        style="cursor:pointer; ${bgRow}"
+                        onclick="retomarVenta('${String(p.id)}')"
                     >
-                        ✕
-                    </button>
-                </td>
-            </tr>
-        `;
-    }).join('');
 
-    let lista = document.getElementById('p_lista');
+                        <td>
+                            ${isFocused ? '👉 ' : ''}
+                            <b>
+                                ${p.nom || 'Venta'}
+                            </b>
+                        </td>
+
+                        <td>
+                            ${(p.items || []).length} art.
+                        </td>
+
+                        <td>
+                            $${parseFloat(
+                                p.total || 0
+                            ).toFixed(2)}
+                        </td>
+
+                        <td>
+
+                            <button
+                                style="
+                                    background:var(--danger);
+                                    color:white;
+                                    border:none;
+                                    padding:5px 10px;
+                                    border-radius:5px;
+                                "
+                                onclick="
+                                    event.stopPropagation();
+                                    eliminarPausada('${String(p.id)}')
+                                "
+                            >
+                                ✕
+                            </button>
+
+                        </td>
+
+                    </tr>
+                `;
+
+            })
+            .join('');
+
+
+    let lista =
+        document.getElementById(
+            'p_lista'
+        );
+
+
     if(lista) {
         lista.innerHTML = html;
     }
-}
-
-// 📡 ESCÁNER EN VIVO DE PAUSADAS (BLINDADO CONTRA ZOMBIES Y EDICIONES OFFLINE)
+    // =========================================================
+// 📡 ESCÁNER EN VIVO: Sincronización celular-PC al instante
 // =========================================================
-(function iniciarRadarPausadas() {
-    if (window._radarPausadasActivo) return;
-
-    if (typeof pb === 'undefined' || !pb.authStore || !pb.authStore.isValid) {
-        return setTimeout(iniciarRadarPausadas, 1500);
-    }
-
-    window._radarPausadasActivo = true;
-
-    // Suscripción en tiempo real (1 sola instancia global)
+if (typeof pb !== 'undefined') {
+    // Escuchamos cualquier cambio en la colección de pausadas
     pb.collection('pausadas').subscribe('*', function (e) {
-        if (!Array.isArray(pausadas)) pausadas = [];
-        let zombies = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
-        let idReal = String(e.record.doc_id || e.record.id || (e.record.data && e.record.data.id) || '').trim();
-
+        
+        // 1. Si la PC (u otro cajero) CREÓ o ACTUALIZÓ una venta pausada:
         if (e.action === 'create' || e.action === 'update') {
-            if (!idReal || zombies.includes(idReal)) return;
-
-            // 🛡️ Si esta cuenta tiene cambios locales sin subir, ignorar la versión vieja de la nube
-            let index = pausadas.findIndex(p => String(p.id) === idReal || String(p.doc_id) === idReal);
-            if (index !== -1 && pausadas[index].sync_pendiente) return;
-
-            let registroNube = (e.record.data && typeof e.record.data === 'object') ? { ...e.record.data } : { ...e.record };
-            registroNube.id = idReal;
-            registroNube.doc_id = idReal;
-            registroNube.sync_pendiente = false;
-
+            let registroNube = e.record.data || e.record; // Dependiendo de cómo guardes el JSON
+            
+            // Buscamos si ya la tenemos en la memoria del celular
+            let index = pausadas.findIndex(p => String(p.id) === String(registroNube.id) || String(p.id) === String(e.record.doc_id));
+            
             if (index !== -1) {
-                pausadas[index] = registroNube;
+                pausadas[index] = registroNube; // Actualizamos
             } else {
-                pausadas.push(registroNube);
+                pausadas.push(registroNube); // Agregamos la nueva
             }
-
-            if (window.dbLocal && dbLocal.pausadas) {
-                dbLocal.pausadas.put({ id: idReal, doc_id: idReal, data: registroNube }).catch(() => {});
-            }
-        } else if (e.action === 'delete') {
-            pausadas = pausadas.filter(p => String(p.id) !== idReal && String(p.doc_id) !== idReal);
-            if (window.dbLocal && dbLocal.pausadas) {
-                dbLocal.pausadas.delete(idReal).catch(() => {});
-            }
+        } 
+        // 2. Si alguien la COBRÓ o ELIMINÓ, la borramos del celular
+        else if (e.action === 'delete') {
+            pausadas = pausadas.filter(p => String(p.id) !== String(e.record.doc_id) && String(p.id) !== String(e.record.id));
         }
 
-        localStorage.setItem("pos_pausadas_v6", JSON.stringify(pausadas));
-
+        // 🌟 3. REACCIÓN AUTOMÁTICA EN LA PANTALLA DEL CELULAR 🌟
+        
+        // Actualizamos la campanita/contador sin tocar nada
         if (typeof actualizarContadorPausadas === 'function') {
             actualizarContadorPausadas();
         }
 
+        // Si el cajero tiene la ventana de pausadas abierta en ese momento, 
+        // ¡la tabla se actualiza sola frente a sus ojos!
         let modal = document.getElementById('modalPausadas');
         if (modal && modal.style.display === 'block') {
             let sucLimpia = String(typeof sucursalActual !== 'undefined' ? sucursalActual : 'Matriz').replace(/📍/g, '').trim().toLowerCase();
+            
             pausadasFiltradas = pausadas.filter(p => {
-                if (!p || p.nom === "FANTASMA") return false;
+                if(!p || p.nom === "FANTASMA") return false;
                 let sucVenta = String(p.sucursal || 'Matriz').replace(/📍/g, '').trim().toLowerCase();
                 return sucVenta === sucLimpia;
             });
+            
             if (typeof renderTablaPausadas === 'function') {
                 renderTablaPausadas();
             }
         }
-    });
-})();
+    }).catch(err => console.warn("No se pudo iniciar el escáner de pausadas:", err));
+}
+
+}
+
+
+
+
+
 // =========================================================
 // ELIMINAR PAUSADA
 // =========================================================
-function eliminarPausada(idTarget) {
-    idPausadaAEliminar = String(idTarget);
 
-    let usuarioElemento = document.getElementById('auth_pausada_user');
+function eliminarPausada(idTarget) {
+
+    idPausadaAEliminar =
+        String(idTarget);
+
+
+    let usuarioElemento =
+        document.getElementById(
+            'auth_pausada_user'
+        );
+
+
     if(usuarioElemento) {
-        usuarioElemento.innerText = typeof usuarioActual !== 'undefined' ? usuarioActual : 'Cajero';
+
+        usuarioElemento.innerText =
+            typeof usuarioActual !== 'undefined'
+                ? usuarioActual
+                : 'Cajero';
+
     }
 
-    let pinElemento = document.getElementById('auth_pausada_pin');
+
+    let pinElemento =
+        document.getElementById(
+            'auth_pausada_pin'
+        );
+
+
     if(pinElemento) {
         pinElemento.value = '';
     }
 
-    let modal = document.getElementById('modalAuthPausada');
+
+    let modal =
+        document.getElementById(
+            'modalAuthPausada'
+        );
+
+
     if(modal) {
-        modal.style.display = 'block';
+
+        modal.style.display =
+            'block';
+
     }
 
+
     setTimeout(() => {
+
         if(pinElemento) {
             pinElemento.focus();
         }
+
     }, 100);
+
 }
 
 
@@ -16281,59 +16274,29 @@ window.vincularCamarasGlobales();
 setTimeout(() => {
     if (typeof vincularCamarasGlobales === 'function') vincularCamarasGlobales();
 }, 1500);
-window.cazarZombiesOffline = async function() {
-    if (typeof pb === 'undefined' || !navigator.onLine || window._cazandoZombies) return;
-
+window.cazarZombiesOffline = function() {
+    if (typeof pb === 'undefined' || !navigator.onLine) return;
+    
     let pendientes = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
     if (pendientes.length === 0) return;
 
-    window._cazandoZombies = true;
     console.log(`🧟 Cazando ${pendientes.length} tickets zombies pendientes...`);
-
-    try {
-        // Asegurar limpieza inmediata en RAM y localStorage
-        if (Array.isArray(pausadas)) {
-            pausadas = pausadas.filter(p => p && !pendientes.includes(String(p.id)) && !pendientes.includes(String(p.doc_id)));
-            localStorage.setItem("pos_pausadas_v6", JSON.stringify(pausadas));
-            if (typeof actualizarContadorPausadas === 'function') actualizarContadorPausadas();
-        }
-
-        for (let idZombie of pendientes) {
-            let eliminadoEnNube = false;
-
-            try {
-                await pb.collection("pausadas").delete(idZombie, { requestKey: null });
-                eliminadoEnNube = true;
-            } catch (e) {
-                // Solo si PocketBase confirma 404 (nunca por corte de red status 0), buscamos por doc_id
-                if (e && e.status === 404) {
-                    try {
-                        let encontrados = await pb.collection("pausadas").getFullList({
-                            filter: `id="${idZombie}" || doc_id="${idZombie}"`,
-                            requestKey: null
-                        });
-                        for (let reg of encontrados) {
-                            await pb.collection("pausadas").delete(reg.id, { requestKey: null });
-                        }
-                        eliminadoEnNube = true;
-                    } catch (errBusqueda) {
-                        if (errBusqueda && errBusqueda.status === 404) {
-                            eliminadoEnNube = true;
-                        }
-                    }
-                }
-            }
-
-            // Solo se saca de la libreta si PocketBase confirmó el borrado real
-            if (eliminadoEnNube) {
-                let actualizados = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
-                actualizados = actualizados.filter(id => id !== idZombie);
-                localStorage.setItem('pos_zombies_pausadas', JSON.stringify(actualizados));
-            }
-        }
-    } finally {
-        window._cazandoZombies = false;
-    }
+    
+    pendientes.forEach(idZombie => {
+        pb.collection("pausadas").delete(idZombie, { requestKey: null })
+          .then(() => {
+              // Si lo logra matar, lo quita de la lista
+              let actualizados = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
+              actualizados = actualizados.filter(id => id !== idZombie);
+              localStorage.setItem('pos_zombies_pausadas', JSON.stringify(actualizados));
+          })
+          .catch(() => {
+              // Si da error 404, significa que ya no existe, también lo quitamos
+              let actualizados = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
+              actualizados = actualizados.filter(id => id !== idZombie);
+              localStorage.setItem('pos_zombies_pausadas', JSON.stringify(actualizados));
+          });
+    });
 };
 
 // Se ejecuta cada vez que el internet regrese
@@ -16792,140 +16755,44 @@ window.apagarMayoreo = function() {
 // 🌐 SINCRONIZADOR AUTOMÁTICO DE RECONEXIÓN (OFFLINE -> NUBE)
 // =========================================================
 window.addEventListener('online', async () => {
-    if (window._syncPausadasEnCurso || typeof pb === 'undefined') return;
-    window._syncPausadasEnCurso = true;
-    console.log("🌐 Internet recuperado. Sincronizando pausas...");
+    console.log("🌐 Internet recuperado. Empujando pausas locales a la nube...");
+    if (typeof pb === 'undefined') return;
 
-    try {
-        let negId = (pb.authStore && (pb.authStore.record?.negocio_id || pb.authStore.model?.negocio_id))
-                    || (typeof negocio_id !== 'undefined' ? negocio_id : '')
-                    || localStorage.getItem('pos_negocio_id_saas') || '';
+    let zombiesVentas = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
 
-        // 0. Eliminar en la nube las pausas borradas o cobradas sin internet
-        let zombies = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
-        if (zombies.length > 0) {
-            let restantes = [];
-            for (let idZ of zombies) {
-                let borradoReal = false;
-                try {
-                    await pb.collection("pausadas").delete(idZ, { requestKey: null });
-                    borradoReal = true;
-                } catch (e) {
-                    if (e && e.status === 404) {
-                        try {
-                            let coincidencias = await pb.collection("pausadas").getFullList({
-                                filter: `id="${idZ}" || doc_id="${idZ}"`,
-                                requestKey: null
-                            });
-                            for (let reg of coincidencias) {
-                                await pb.collection("pausadas").delete(reg.id, { requestKey: null });
-                            }
-                            borradoReal = true;
-                        } catch (err2) {
-                            if (err2 && err2.status === 404) borradoReal = true;
-                        }
-                    }
-                }
-                if (!borradoReal) restantes.push(idZ);
-            }
-            zombies = restantes;
-            localStorage.setItem('pos_zombies_pausadas', JSON.stringify(zombies));
-        }
+    // 1. Sincronizar VENTAS pausadas hacia PocketBase
+    for (let p of pausadas) {
+        if (!p || !p.id) continue;
+        let idTarget = String(p.id);
+        
+        // 🚫 EL ESCUDO: Si el ticket está marcado para morir, NO lo resucites
+        if (zombiesVentas.includes(idTarget) || p.nom === "FANTASMA") continue;
 
-        // 1. Subir SOLO las pausas creadas o editadas sin internet (sync_pendiente === true)
-        if (Array.isArray(pausadas)) {
-            for (let p of pausadas) {
-                if (!p || !p.id || p.nom === "FANTASMA") continue;
-                let idTarget = String(p.id);
-                if (zombies.includes(idTarget) || !p.sync_pendiente) continue;
-
-                let dataLimpia = { ...p, sync_pendiente: false, en_nube: true };
-                let payload = { id: idTarget, doc_id: idTarget, negocio_id: negId, data: dataLimpia };
-
-                try {
-                    if (p.en_nube) {
-                        await pb.collection("pausadas").update(idTarget, payload, { requestKey: null });
-                    } else {
-                        await pb.collection("pausadas").create(payload, { requestKey: null });
-                    }
-                    p.sync_pendiente = false;
-                    p.en_nube = true;
-                } catch (e) {
-                    try {
-                        if (p.en_nube) {
-                            await pb.collection("pausadas").create(payload, { requestKey: null });
-                        } else {
-                            await pb.collection("pausadas").update(idTarget, payload, { requestKey: null });
-                        }
-                        p.sync_pendiente = false;
-                        p.en_nube = true;
-                    } catch (err2) {
-                        console.warn("⚠️ Pendiente reintento de subida:", idTarget);
-                    }
-                }
-            }
-        }
-
-        // 2. Descargar estado limpio de la nube respetando zombies y cambios locales pendientes
         try {
-            let filtro = negId ? `negocio_id="${negId}"` : '';
-            let nube = await pb.collection("pausadas").getFullList({ filter: filtro, requestKey: null });
-            let zombiesActuales = JSON.parse(localStorage.getItem('pos_zombies_pausadas') || '[]');
-            let mapaFinal = new Map();
-
-            // Primero conservar las que sigan con sync_pendiente local
-            (Array.isArray(pausadas) ? pausadas : []).forEach(p => {
-                if (p && p.id && !zombiesActuales.includes(String(p.id)) && p.sync_pendiente) {
-                    mapaFinal.set(String(p.id), p);
-                }
-            });
-
-            // Integrar registros válidos de la nube
-            nube.forEach(r => {
-                let idReal = String(r.doc_id || r.id || (r.data && r.data.id) || '').trim();
-                if (!idReal || zombiesActuales.includes(idReal) || mapaFinal.has(idReal)) return;
-                let obj = (r.data && typeof r.data === 'object') ? { ...r.data } : { ...r };
-                obj.id = idReal;
-                obj.doc_id = idReal;
-                obj.sync_pendiente = false;
-                obj.en_nube = true;
-                mapaFinal.set(idReal, obj);
-            });
-
-            pausadas = Array.from(mapaFinal.values());
-            localStorage.setItem("pos_pausadas_v6", JSON.stringify(pausadas));
-
-            if (window.dbLocal && dbLocal.pausadas) {
-                await dbLocal.pausadas.clear().catch(() => {});
-                for (let p of pausadas) {
-                    await dbLocal.pausadas.put({ id: String(p.id), doc_id: String(p.id), data: p }).catch(() => {});
-                }
-            }
-        } catch (errDescarga) {}
-
-        if (typeof actualizarContadorPausadas === 'function') actualizarContadorPausadas();
-        let modal = document.getElementById('modalPausadas');
-        if (modal && modal.style.display === 'block' && typeof renderTablaPausadas === 'function') {
-            let sucLimpia = String(typeof sucursalActual !== 'undefined' ? sucursalActual : 'Matriz').replace(/📍/g, '').trim().toLowerCase();
-            pausadasFiltradas = pausadas.filter(p => p && p.nom !== "FANTASMA" && String(p.sucursal || 'Matriz').replace(/📍/g, '').trim().toLowerCase() === sucLimpia);
-            renderTablaPausadas();
+            await pb.collection("pausadas").update(idTarget, { doc_id: idTarget, data: p }, { requestKey: null });
+            p.sync_pendiente = false;
+            p.en_nube = true;
+        } catch (e) {
+            pb.collection("pausadas").create({ id: idTarget, doc_id: idTarget, data: p }, { requestKey: null })
+              .then(() => { p.sync_pendiente = false; p.en_nube = true; })
+              .catch(() => {});
         }
+    }
+    localStorage.setItem("pos_pausadas_v6", JSON.stringify(pausadas));
 
-        // 3. Sincronizar COMPRAS pausadas hacia PocketBase
-        if (typeof comprasPausadas !== 'undefined' && Array.isArray(comprasPausadas)) {
-            for (let cp of comprasPausadas) {
-                if (!cp || !cp.id) continue;
-                let idTarget = String(cp.id);
-                let payloadCp = { id: idTarget, doc_id: idTarget, negocio_id: negId, data: cp };
-                try {
-                    await pb.collection("compras_pausadas").update(idTarget, payloadCp, { requestKey: null });
-                } catch (e) {
-                    await pb.collection("compras_pausadas").create(payloadCp, { requestKey: null }).catch(() => {});
-                }
-            }
+    // 2. Sincronizar COMPRAS pausadas hacia PocketBase (misma protección)
+    let zombiesCompras = JSON.parse(localStorage.getItem('pos_zombies_compras_pausadas') || '[]');
+    for (let cp of comprasPausadas) {
+        if (!cp || !cp.id) continue;
+        let idTarget = String(cp.id);
+        
+        if (zombiesCompras.includes(idTarget)) continue;
+
+        try {
+            await pb.collection("compras_pausadas").update(idTarget, { doc_id: idTarget, data: cp }, { requestKey: null });
+        } catch (e) {
+            pb.collection("compras_pausadas").create({ id: idTarget, doc_id: idTarget, data: cp }, { requestKey: null }).catch(() => {});
         }
-    } finally {
-        window._syncPausadasEnCurso = false;
     }
 });
 window.eliminarItemC = function(i) {
