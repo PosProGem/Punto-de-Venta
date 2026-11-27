@@ -1332,16 +1332,17 @@ body {
             <form id="formNuevoProducto" onsubmit="guardarNuevoProductoManual(event)" style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; display: flex; flex-direction: column; gap: 15px;">
                 
                 <!-- Fila 1 -->
-                <div style="display: flex; gap: 15px;">
-                    <div style="flex: 1.5;">
-                        <label style="color: #007bff; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">CÓDIGO</label>
-                        <input type="text" id="np_codigo" required autocomplete="off" style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
-                    </div>
-                    <div style="flex: 1;">
-                        <label style="color: #007bff; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">DEPARTAMENTO</label>
-                        <input type="text" id="np_depto" value="General" autocomplete="off" style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
-                    </div>
-                </div>
+<div style="display: flex; gap: 15px;">
+    <div style="flex: 1.5;">
+        <label style="color: #007bff; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">CÓDIGO</label>
+        <input type="text" id="np_codigo" required autocomplete="off" oninput="validarCodigoNuevoProducto()" style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
+        <div id="np_aviso_duplicado" style="display: none; color: #dc3545; font-size: 11px; font-weight: bold; margin-top: 4px;"></div>
+    </div>
+    <div style="flex: 1;">
+        <label style="color: #007bff; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">DEPARTAMENTO</label>
+        <input type="text" id="np_depto" value="General" autocomplete="off" style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
+    </div>
+</div>
 
                 <!-- Fila 2 -->
                 <div style="display: flex; gap: 15px;">
@@ -1352,43 +1353,47 @@ body {
                     <div style="flex: 1;">
                         <label style="color: #007bff; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">TIPO</label>
                         <select id="np_tipo" style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none; background: white;">
-                            <option value="PIEZA">PIEZA</option>
+                            <option value="pieza">PIEZA</option>
                             <option value="granel">GRANEL</option>
                         </select>
                     </div>
                 </div>
 
                 <!-- Fila 3 -->
-                <div style="display: flex; gap: 15px;">
-                    <div style="flex: 1;">
-                        <label style="color: #007bff; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">COSTO BASE</label>
-                        <input type="number" step="0.01" id="np_costo" value="0" style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
-                    </div>
-                    <div style="flex: 1;">
-                        <label style="color: #007bff; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">IVA/ISR %</label>
-                        <input type="number" step="0.01" id="np_iva" value="0" style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
-                    </div>
-                    <div style="flex: 1;">
-                        <label style="color: #20c997; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">% GANANCIA</label>
-                        <input type="number" step="0.01" id="np_ganancia" value="0" placeholder="Automático" style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
-                    </div>
-                </div>
+<div style="display: flex; gap: 10px;">
+    <div style="flex: 1;">
+        <label style="color: #007bff; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">COSTO BASE</label>
+        <input type="number" step="0.01" id="np_costo" value="0" oninput="calcNuevoProdDesdeCosto()" style="width: 100%; padding: 8px 10px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
+    </div>
+    <div style="flex: 1;">
+        <label style="color: #007bff; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">IVA/ISR %</label>
+        <input type="number" step="0.01" id="np_iva" value="0" oninput="calcNuevoProdDesdeCosto()" style="width: 100%; padding: 8px 10px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
+    </div>
+    <div style="flex: 1;">
+        <label style="color: #6c757d; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">COSTO REAL</label>
+        <input type="number" step="0.01" id="np_costo_real" value="0.00" readonly style="width: 100%; padding: 8px 10px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none; background-color: #f1f5f9; font-weight: bold; color: #334155;">
+    </div>
+    <div style="flex: 1;">
+        <label style="color: #20c997; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">% GANANCIA</label>
+        <input type="number" step="0.01" id="np_ganancia" value="0" placeholder="Automático" oninput="calcNuevoProdDesdeCosto()" style="width: 100%; padding: 8px 10px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
+    </div>
+</div>
 
-                <!-- Fila 4 -->
-                <div style="display: flex; gap: 15px;">
-                    <div style="flex: 1;">
-                        <label style="color: #007bff; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">P. VENTA</label>
-                        <input type="number" step="0.01" id="np_venta" required style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
-                    </div>
-                    <div style="flex: 1;">
-                        <label style="color: #007bff; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">P. MAYO</label>
-                        <input type="number" step="0.01" id="np_pm" style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
-                    </div>
-                    <div style="flex: 1;">
-                        <label style="color: #007bff; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">MIN MAYO</label>
-                        <input type="number" step="any" id="np_md" value="0" style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
-                    </div>
-                </div>
+<!-- Fila 4 -->
+<div style="display: flex; gap: 15px;">
+    <div style="flex: 1;">
+        <label style="color: #007bff; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">P. VENTA</label>
+        <input type="number" step="0.01" id="np_venta" required oninput="calcNuevoProdDesdeVenta()" style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
+    </div>
+    <div style="flex: 1;">
+        <label style="color: #007bff; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">P. MAYO</label>
+        <input type="number" step="0.01" id="np_pm" style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
+    </div>
+    <div style="flex: 1;">
+        <label style="color: #007bff; font-size: 10px; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 5px;">MIN MAYO</label>
+        <input type="number" step="any" id="np_md" value="0" style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
+    </div>
+</div>
 
                 <!-- Fila 5 -->
                 <div style="display: flex; gap: 15px;">
@@ -1450,10 +1455,10 @@ body {
         </div>
         
         <div id="div_cobro_recibido">
-            <label>MONTO A RECIBIR/ABONAR <small style="color:#888;">(Flecha arriba para método)</small>:</label>
-            <input type="number" id="m_recibido" oninput="calcCambio()" onkeydown="if(event.key==='ArrowUp'){event.preventDefault(); document.getElementById(document.getElementById('m_metodo').value === 'Crédito' ? 'm_cliente_select' : 'm_metodo').focus();} else focoCobro(event, 'add')" style="font-size:24px; font-weight:bold; color:var(--p); text-align:center;">
-            <div id="m_cambio" style="text-align:right; font-weight:bold; margin:10px 0; color:#555;">Cambio: $0.00</div>
-        </div>
+    <label>MONTO A RECIBIR/ABONAR <small style="color:#888;">(Flecha arriba para método)</small>:</label>
+    <input type="number" id="m_recibido" name="pos_monto_recibido_no_autofill" autocomplete="one-time-code" oninput="calcCambio()" onkeydown="if(event.key==='ArrowUp'){event.preventDefault(); document.getElementById(document.getElementById('m_metodo').value === 'Crédito' ? 'm_cliente_select' : 'm_metodo').focus();} else focoCobro(event, 'add')" style="font-size:24px; font-weight:bold; color:var(--p); text-align:center;">
+    <div id="m_cambio" style="text-align:right; font-weight:bold; margin:10px 0; color:#555;">Cambio: $0.00</div>
+</div>
 
         <div id="m_lista_pagos" style="margin-top:10px; max-height:100px; overflow-y:auto; padding-top:5px;"></div>
 
@@ -2684,6 +2689,6 @@ body {
 
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-<script src="app.js?v=26"></script>
+<script src="app.js?v=28"></script>
 </body>
 </html>

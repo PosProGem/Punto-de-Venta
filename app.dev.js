@@ -50,7 +50,9 @@ window.conectarDBLocal();
 // ====================================================================
 // === 1. CONEXIÓN A POCKETBASE EN LA NUBE ===
 // ====================================================================
-const pb = new PocketBase('https://onyx-badger.pikapod.net');
+const urlPod = localStorage.getItem('pos_pod_url') || 'https://onyx-badger.pikapod.net';
+const pb = new PocketBase(urlPod);
+window.pb = pb;
 pb.autoCancellation(false);
 window.pb = pb; // 👈 Agrega esta línea justo debajo
 
@@ -4599,34 +4601,56 @@ nombreVentaActual = "";
 };
 
 // Granel
-function calcGranel(p) { 
-    if(p) document.getElementById('g_total_m').value = (document.getElementById('g_cant').value * (tempGranel.pv||1)).toFixed(2); 
-    else document.getElementById('g_cant').value = (document.getElementById('g_total_m').value / (tempGranel.pv||1)).toFixed(3); 
+function obtenerPrecioGranelActual(cant) {
+    let pMaestro = (tempGranel.grupo && inv[tempGranel.grupo]) ? inv[tempGranel.grupo] : tempGranel;
+    let precioNormal = parseFloat(tempGranel.pv) || 0;
+    let minM = parseFloat(pMaestro.md) || 10;
+    let minM2 = parseFloat(pMaestro.md2) || 0;
+    let precioM1 = parseFloat(pMaestro.pm) || precioNormal;
+    let precioM2 = parseFloat(pMaestro.pm2) || precioM1;
+
+    if (typeof forceWholesale !== 'undefined' && forceWholesale) {
+        if (minM2 > 0 && cant >= minM2) return Math.min(precioNormal, precioM2);
+        if (cant >= minM) return Math.min(precioNormal, precioM1);
+    }
+    return precioNormal;
 }
+
+function calcGranel(p) { 
+    if (p) {
+        let cant = parseFloat(document.getElementById('g_cant').value) || 0;
+        let precioUnit = obtenerPrecioGranelActual(cant);
+        document.getElementById('g_total_m').value = (cant * precioUnit).toFixed(2);
+    } else {
+        let dinero = parseFloat(document.getElementById('g_total_m').value) || 0;
+        let precioBase = parseFloat(tempGranel.pv) || 1;
+        let cantAprox = dinero / precioBase;
+        let precioUnit = obtenerPrecioGranelActual(cantAprox) || 1;
+        document.getElementById('g_cant').value = (dinero / precioUnit).toFixed(3);
+    }
+}
+
 function confirmarGranel() { 
     let c = parseFloat(document.getElementById('g_cant').value); 
-    let dineroExacto = parseFloat(document.getElementById('g_total_m').value); 
     
-    if(c > 0) { 
+    if (c > 0) { 
         let nuevoItem = { 
             cod: tempGranel.cod, 
             nom: tempGranel.nom, 
             can: c, 
-            tipo: 'granel', 
-            precioManual: (dineroExacto / c), 
-            granelDineroExacto: dineroExacto 
+            tipo: 'granel'
         };
 
-        // 🌟 EL TRUCO: Le pegamos la etiqueta de la promoción para que el sistema la cuente
+        // 🌟 Mantenemos la etiqueta de promoción para que el sistema la cuente
         if (tempGranel.promo_ref) {
             nuevoItem.promo_ref = tempGranel.promo_ref;
-            nuevoItem.usos_promo = c; // Contará los kilos/gramos exactos en la base de datos
+            nuevoItem.usos_promo = c;
         }
 
         carV.push(nuevoItem); 
         
-        if(typeof window.renderV === 'function') window.renderV(); 
-        else if(typeof renderV === 'function') renderV();
+        if (typeof window.renderV === 'function') window.renderV(); 
+        else if (typeof renderV === 'function') renderV();
         
         cerrarModales(); 
     } 
@@ -4838,14 +4862,32 @@ async function preguntarPausar() {
     }
 }
 // =========================================================
-// 2. RETOMAR VENTA
+// 2. RETOMAR VENTA (SIEMPRE FRESCA DESDE LA NUBE)
 // =========================================================
-window.retomarVenta = function(idBuscar) {
+window.retomarVenta = async function(idBuscar) {
     let idStr = String(idBuscar);
     let i = pausadas.findIndex(p => String(p.id) === idStr);
     if (i === -1) return;
 
     let ventaRecuperada = pausadas[i];
+
+    // ☁️ Si hay internet y no está pendiente de subir, jalamos la versión más reciente de la nube
+    if (typeof pb !== 'undefined' && navigator.onLine && !ventaRecuperada.sync_pendiente) {
+        try {
+            let regNube = await pb.collection("pausadas").getOne(idStr, { requestKey: null });
+            if (regNube && regNube.data && typeof regNube.data === 'object') {
+                ventaRecuperada = { ...regNube.data, id: idStr, doc_id: idStr, sync_pendiente: false, en_nube: true };
+                pausadas[i] = ventaRecuperada;
+                localStorage.setItem("pos_pausadas_v6", JSON.stringify(pausadas));
+                if (window.dbLocal && dbLocal.pausadas) {
+                    await dbLocal.pausadas.put({ id: idStr, doc_id: idStr, data: ventaRecuperada }).catch(() => {});
+                }
+            }
+        } catch (err) {
+            console.warn("⚠️ No se pudo refrescar la pausada desde la nube, usando copia local:", err);
+        }
+    }
+
     carV = Array.isArray(ventaRecuperada.items) ? [...ventaRecuperada.items] : [];
     nombreVentaActual = ventaRecuperada.nom || "Venta";
     window.idVentaPausadaActual = idStr;
@@ -6324,25 +6366,28 @@ window.guardarAjusteStock = async function() {
 
             let guardadoExitoso = false;
 
-            // 🌟 ESCUDO ANTI-DUPLICADOS (Buscador inteligente)
-            if (typeof pb !== 'undefined') {
+            // 🌟 ESCUDO ANTI-DUPLICADOS (Buscador inteligente en PocketBase)
+            if (typeof pb !== 'undefined' && navigator.onLine) {
                 try {
-                    let idBuscar = String(codMaestro); 
-                    // En lugar de buscar por ID estricto, buscamos dentro de la columna 'cod' o 'codigo'
-                    let pNube = await pb.collection('inventario').getFirstListItem(`id="${idBuscar}" || cod="${idBuscar}" || codigo="${idBuscar}"`);
-                    
-                    if (!pNube.stock) pNube.stock = {};
-                    if (!pNube.inv_sucursales) pNube.inv_sucursales = {};
-                    
-                    pNube.stock[sucursalActual] = stockDespuesReal;
-                    pNube.inv_sucursales[sucursalActual] = stockDespuesReal;
-                    if (!pNube.stock && !pNube.inv_sucursales && pNube.can !== undefined) pNube.can = stockDespuesReal;
-                    
-                    // Actualizamos usando el ID interno real que PocketBase le haya asignado (Evita duplicados)
-                    await pb.collection('inventario').update(pNube.id, pNube);
+                    let idBuscar = String(codMaestro);
+                    let negId = (pb.authStore?.record?.negocio_id || pb.authStore?.model?.negocio_id)
+                        || localStorage.getItem('pos_negocio_id_saas') || '';
+
+                    let filtro = negId
+                        ? `(id="${idBuscar}" || doc_id="${idBuscar}") && negocio_id="${negId}"`
+                        : `(id="${idBuscar}" || doc_id="${idBuscar}")`;
+
+                    let pNube = await pb.collection('inventario').getFirstListItem(filtro, { requestKey: null });
+
+                    let dataActualizada = { ...(pNube.data || {}) };
+                    if (!dataActualizada.stock || typeof dataActualizada.stock !== 'object') dataActualizada.stock = {};
+                    dataActualizada.stock[sucursalActual] = stockDespuesReal;
+                    dataActualizada.updatedAt = Date.now();
+
+                    await pb.collection('inventario').update(pNube.id, { data: dataActualizada }, { requestKey: null });
                     guardadoExitoso = true;
                 } catch (errPb) {
-                    console.warn("PocketBase no localizó el código. Pasando a sistema secundario...");
+                    console.warn("PocketBase no localizó el código. Pasando a sistema secundario...", errPb);
                 }
             }
 
@@ -7382,12 +7427,28 @@ async function confirmarEliminacionProv() {
                 }
             }
 
-            // 3. Borramos en Firebase
-            if (typeof db !== 'undefined') {
+            // 3. Borramos en PocketBase (sin provocar 404)
+            if (typeof pb !== 'undefined' && navigator.onLine) {
                 try {
-                    await db.collection("proveedores").doc(prov).delete();
-                } catch (errDB) {
-                    console.warn("Omitiendo Firebase:", errDB);
+                    let negId = (pb.authStore?.record?.negocio_id || pb.authStore?.model?.negocio_id)
+                        || localStorage.getItem('pos_negocio_id_saas') || '';
+                    let lista = await pb.collection("proveedores").getFullList({
+                        filter: negId ? `negocio_id="${negId}"` : '',
+                        requestKey: null
+                    });
+                    let encontrado = lista.find(r =>
+                        r.id === prov ||
+                        r.doc_id === prov ||
+                        r.data?.doc_id === prov ||
+                        r.data?.nom === prov ||
+                        r.data?.nombre === prov
+                    );
+                    if (encontrado) {
+                        await pb.collection("proveedores").delete(encontrado.id, { requestKey: null });
+                        console.log(`✅ Proveedor "${prov}" eliminado de la nube.`);
+                    }
+                } catch (errPB) {
+                    console.warn("⚠️ Error al borrar proveedor en PocketBase:", errPB);
                 }
             }
 
@@ -16251,7 +16312,8 @@ window.vincularCamarasGlobales = function() {
         'buscar_inv',     // Inventario
         'kardex_buscar',     // Kardex
         'k_cod',        // Código del Kit
-        'k_comp_cod'    // Código componentes Kit
+        'k_comp_cod',    // Código componentes Kit
+        'np_codigo'    // Producto Nuevo
     ];
 
     // Escucha en todo el documento: inmune a innerHTML o re-renderizados
@@ -16308,6 +16370,13 @@ setTimeout(cazarZombiesOffline, 3000);
 // ====================================================================
 window.abrirModalNuevoProducto = function() {
     document.getElementById('formNuevoProducto').reset();
+    const aviso = document.getElementById('np_aviso_duplicado');
+    const inpCod = document.getElementById('np_codigo');
+    const inpReal = document.getElementById('np_costo_real');
+    if (aviso) { aviso.style.display = 'none'; aviso.innerText = ''; }
+    if (inpCod) inpCod.style.borderColor = '#ced4da';
+    if (inpReal) inpReal.value = '0.00';
+
     const modal = document.getElementById('modalNuevoProductoManual');
     if (modal) {
         modal.style.display = 'flex';
@@ -16315,6 +16384,91 @@ window.abrirModalNuevoProducto = function() {
     }
 };
 
+// 1. Aviso inmediato si el código ya existe en inventario
+window.validarCodigoNuevoProducto = function() {
+    const inpCod = document.getElementById('np_codigo');
+    const aviso = document.getElementById('np_aviso_duplicado');
+    if (!inpCod || !aviso) return;
+
+    const cod = inpCod.value.trim();
+    if (cod && typeof inv !== 'undefined' && inv[cod]) {
+        aviso.innerText = `⚠️ Este código ya existe: "${inv[cod].nom || 'Sin nombre'}"`;
+        aviso.style.display = 'block';
+        inpCod.style.borderColor = '#dc3545';
+    } else {
+        aviso.style.display = 'none';
+        aviso.innerText = '';
+        inpCod.style.borderColor = '#ced4da';
+    }
+};
+
+// 2. Calcula Costo Real (Base + IVA/ISR) y P. Venta desde % Ganancia
+window.calcNuevoProdDesdeCosto = function() {
+    const costoBase = parseFloat(document.getElementById('np_costo').value) || 0;
+    const iva = parseFloat(document.getElementById('np_iva').value) || 0;
+    const ganancia = parseFloat(document.getElementById('np_ganancia').value) || 0;
+
+    const costoReal = costoBase * (1 + (iva / 100));
+    const inpReal = document.getElementById('np_costo_real');
+    if (inpReal) inpReal.value = costoReal.toFixed(2);
+
+    if (costoReal > 0) {
+        const pVenta = costoReal * (1 + (ganancia / 100));
+        document.getElementById('np_venta').value = pVenta.toFixed(2);
+    }
+};
+
+// 3. Calcula % Ganancia al escribir directamente el P. Venta
+window.calcNuevoProdDesdeVenta = function() {
+    const costoBase = parseFloat(document.getElementById('np_costo').value) || 0;
+    const iva = parseFloat(document.getElementById('np_iva').value) || 0;
+    const costoReal = costoBase * (1 + (iva / 100));
+    const pVenta = parseFloat(document.getElementById('np_venta').value) || 0;
+
+    const inpReal = document.getElementById('np_costo_real');
+    if (inpReal) inpReal.value = costoReal.toFixed(2);
+
+    if (costoReal > 0 && pVenta > 0) {
+        const ganancia = ((pVenta - costoReal) / costoReal) * 100;
+        document.getElementById('np_ganancia').value = ganancia.toFixed(2);
+    } else {
+        document.getElementById('np_ganancia').value = '0';
+    }
+};
+
+// ⌨️ SALTO CON ENTER EN MODAL DE NUEVO PRODUCTO
+(function configurarEnterNuevoProducto() {
+    const form = document.getElementById('formNuevoProducto');
+    if (!form) return;
+
+    const ordenCampos = [
+        'np_codigo', 'np_depto', 'np_nombre', 'np_tipo',
+        'np_costo', 'np_iva', 'np_ganancia', 'np_venta',
+        'np_pm', 'np_md', 'np_pm2', 'np_md2',
+        'np_jefe', 'np_stock'
+    ];
+
+    form.addEventListener('keydown', function(e) {
+        if (e.key !== 'Enter') return;
+
+        const actual = document.activeElement;
+        const idx = ordenCampos.indexOf(actual.id);
+        if (idx === -1) return;
+
+        e.preventDefault(); // Evita que se envíe el formulario antes de tiempo
+
+        if (idx < ordenCampos.length - 1) {
+            const siguiente = document.getElementById(ordenCampos[idx + 1]);
+            if (siguiente) {
+                siguiente.focus();
+                if (typeof siguiente.select === 'function') siguiente.select();
+            }
+        } else {
+            // Si está en el último campo (np_stock), guarda el producto
+            form.requestSubmit();
+        }
+    });
+})();
 window.cerrarModalNuevoProducto = function() {
     const modal = document.getElementById('modalNuevoProductoManual');
     if (modal) modal.style.display = 'none';
